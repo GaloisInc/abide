@@ -1,0 +1,7 @@
+dist
+dist-newstyle
+.envrc
+shell.nix
+test/*
+.ghc.*
+.dir-locals.el

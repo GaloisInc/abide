@@ -1,0 +1,75 @@
+name:                abide
+version:             0.1.0.0
+synopsis:            ABI parameter passing abstraction
+license:             BSD3
+license-file:        LICENSE
+author:              Karl Smeltzer
+maintainer:          karl@galois.com
+copyright:           Galois Inc. (c) 2018
+homepage:            https://github.com/GaloisInc/abide                     
+category:            Data
+build-type:          Simple
+extra-source-files:  ChangeLog.md
+cabal-version:       >=1.10
+description:
+  This package abstracts (some) different parameter-passing rules.  These vary
+  by both architecture and ABI and are often complex.
+
+
+library
+  exposed-modules:     Abide.ABI.SystemV
+                     , Abide.Compute
+                     , Abide.Generate
+                     , Abide.Parse
+                     , Abide.Parse.ABI
+                     , Abide.Parse.Arch
+                     , Abide.Parse.Common
+                     , Abide.Types
+                     , Abide.Types.ABI.SystemV
+                     , Abide.Types.Arch.PPC
+                     , Abide.Types.Arch.X86_64
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base >=4.11 && <4.13
+                     , bytestring ==0.10.*
+                     , comonad ==5.*
+                     , containers ==0.5.*
+                     , filepath ==1.*
+                     , lens ==4.*
+                     , megaparsec ==6.*
+                     , parameterized-utils ==1.*
+                     , parser-combinators ==1.*
+                     , text ==1.*
+                     , tuple ==0.3.*
+                     , universe ==1.*
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+
+executable abide
+  main-is:             Main.hs
+  other-modules:       Abide.ABI.SystemV
+                     , Abide.Compute
+                     , Abide.Generate
+                     , Abide.Parse
+                     , Abide.Parse.ABI
+                     , Abide.Parse.Arch                     
+                     , Abide.Parse.Common
+                     , Abide.Types
+                     , Abide.Types.ABI.SystemV
+                     , Abide.Types.Arch.PPC
+                     , Abide.Types.Arch.X86_64
+  -- other-extensions:
+  build-depends:       base >=4.11 && <4.13
+                     , bytestring ==0.10.*
+                     , comonad ==5.*
+                     , containers ==0.5.*
+                     , filepath ==1.*
+                     , lens ==4.*
+                     , megaparsec ==6.*
+                     , parameterized-utils ==1.*                     
+                     , parser-combinators ==1.*
+                     , text ==1.*
+                     , tuple ==0.3.*
+                     , universe ==1.*
+  hs-source-dirs:      src
+  default-language:    Haskell2010
