@@ -31,3 +31,15 @@ x86_64Typemap = M.fromList
   , (MEMORY,  x86MemRegs  )]
 
 x86fp = "x86_64"
+
+ppcGPRegs = [PPC.R3, PPC.R4, PPC.R5, PPC.R6, PPC.R7, PPC.R8, PPC.R9, PPC.R10, PPC.StackGP]
+
+ppcFloatRegs = [ PPC.F1, PPC.F2, PPC.F3, PPC.F4, PPC.F5, PPC.F6, PPC.F7
+               , PPC.F8, PPC.F9, PPC.F10, PPC.F11, PPC.F12, PPC.F13, PPC.StackFloat ]
+
+ppcTypemap :: TypeMap PPCClasses PPC.PPCRegisters
+ppcTypemap = M.fromList
+  [ (PPCGP, ppcGPRegs)
+  , (PPCFLOAT, ppcFloatRegs)
+  ]
+               

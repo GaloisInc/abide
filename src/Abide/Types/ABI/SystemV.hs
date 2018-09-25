@@ -20,7 +20,7 @@ data X86_64Classes
   | MEMORY
   deriving (Bounded, Enum, Eq, Ord, Show)
 
-data PPCClasses = PPCTodo
+data PPCClasses = PPCGP | PPCFLOAT
   deriving (Bounded, Enum, Eq, Ord, Show)
 
 instance U.Universe PPCClasses

@@ -40,7 +40,7 @@ instance HasFST X86_64 SystemV where
   getFST = P.x86_64FST
 
 instance HasFST PPC SystemV where
-  getFST = undefined
+  getFST = P.ppcFST
 
 transduce :: forall arch abi i o.
              ( InSymbol arch abi ~ i, OutSymbol arch abi ~ o, Eq i)

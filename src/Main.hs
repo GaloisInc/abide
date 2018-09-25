@@ -13,7 +13,7 @@ import Abide.Types.ABI.SystemV
 import Abide.Types.Arch.X86_64
 
 main :: IO ()
-main = generateX86
+main = generatePPC
 
 -- An example of generating the X86_64 finite state transducer.  We need a
 -- better story for generating these and then parsing them for use without
@@ -24,6 +24,16 @@ generateX86 = do
   efst <- x86_64FSTFromFile "/home/karl/code/abide/test/x86_64.fst.txt"
   case efst of
     Left err -> print err
-    Right fst -> print $ transduce fst fakeInput
+    Right fst -> print $ transduce fst fakeX64Input
 
-fakeInput = [INTEGER, INTEGER, SSE]
+generatePPC :: IO ()
+generatePPC = do
+  generateFiles "/home/karl/code/abide/test/ppc" (mkFSTGen SV.ppcTypemap)
+  efst <- ppcFSTFromFile "/home/karl/code/abide/test/ppc.fst.txt"
+  case efst of
+    Left err -> print err
+    Right fst -> print $ transduce fst fakePPCInput
+  
+fakeX64Input = [INTEGER, INTEGER, SSE]
+
+fakePPCInput = [PPCGP, PPCGP, PPCFLOAT]
