@@ -30,7 +30,7 @@ library
                      , Abide.Types.Arch.X86_64
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >=4.11 && <4.13
+  build-depends:       base >=4.10 && <4.13
                      , bytestring ==0.10.*
                      , comonad ==5.*
                      , containers ==0.5.*
@@ -59,7 +59,7 @@ executable abide
                      , Abide.Types.Arch.PPC
                      , Abide.Types.Arch.X86_64
   -- other-extensions:
-  build-depends:       base >=4.11 && <4.13
+  build-depends:       base >=4.10 && <4.13
                      , bytestring ==0.10.*
                      , comonad ==5.*
                      , containers ==0.5.*

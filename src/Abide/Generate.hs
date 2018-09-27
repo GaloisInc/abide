@@ -32,12 +32,15 @@ import           Control.Monad ( forM_ )
 import           Data.List ( nub, unwords )
 import qualified Data.Map.Strict as M
 import           Data.Maybe ( fromJust )
+import           Data.Semigroup ( (<>) )
 import qualified Data.Set as S
 import qualified Data.Universe as U
 import qualified System.IO as Sys
 
 import           Abide.Types
 import           Abide.Types.Arch.X86_64
+
+import           Prelude
 
 --------------------------------------------------------------------------------
 -- FSTGenerator construction
