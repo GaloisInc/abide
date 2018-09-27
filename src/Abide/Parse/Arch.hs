@@ -30,14 +30,14 @@ x64Registers =  MP.string "RDI" $> RDI
             <|> MP.string "R8"  $> X64.R8
             <|> MP.string "R9"  $> X64.R9
             <|> MP.string "StackInt" $> StackInt
-            <|> MP.string "MMX0" $> MMX0
-            <|> MP.string "MMX1" $> MMX1
-            <|> MP.string "MMX2" $> MMX2
-            <|> MP.string "MMX3" $> MMX3
-            <|> MP.string "MMX4" $> MMX4
-            <|> MP.string "MMX5" $> MMX5
-            <|> MP.string "MMX6" $> MMX6
-            <|> MP.string "MMX7" $> MMX7
+            <|> MP.string "YMM0" $> YMM0
+            <|> MP.string "YMM1" $> YMM1
+            <|> MP.string "YMM2" $> YMM2
+            <|> MP.string "YMM3" $> YMM3
+            <|> MP.string "YMM4" $> YMM4
+            <|> MP.string "YMM5" $> YMM5
+            <|> MP.string "YMM6" $> YMM6
+            <|> MP.string "YMM7" $> YMM7
             <|> MP.string "StackFloat" $> X64.StackFloat
             <|> MP.string "StackMem" $> StackMem
 

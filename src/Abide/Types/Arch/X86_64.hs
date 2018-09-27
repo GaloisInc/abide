@@ -14,7 +14,7 @@ import qualified Data.Universe as U
 -- something Either-like instead?
 data X86_64Registers
   = RDI | RSI | RDX | RCX | R8 | R9 | StackInt
-  | MMX0 | MMX1 | MMX2 | MMX3 | MMX4 | MMX5 | MMX6 | MMX7 | StackFloat
+  | YMM0 | YMM1 | YMM2 | YMM3 | YMM4 | YMM5 | YMM6 | YMM7 | StackFloat
   | StackMem
   deriving (Bounded, Enum, Eq, Ord, Show)
 

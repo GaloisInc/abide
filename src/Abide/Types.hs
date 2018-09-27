@@ -125,26 +125,20 @@ makeLenses ''FST
 
 
 --------------------------------------------------------------------------------
--- We need to handle FP registers a special way sometimes, so define a class
--- to check that
-
-type family ArchRegs arch = regs
-
-type instance ArchRegs X86_64 = X64.X86_64Registers
-type instance ArchRegs PPC = PPC.PPCRegisters
+-- FP registers sometimes need special handling.
 
 class IsFPReg reg where
   isFPReg :: reg -> Bool
 
 instance IsFPReg X64.X86_64Registers where
-  isFPReg X64.MMX0 = True
-  isFPReg X64.MMX1 = True
-  isFPReg X64.MMX2 = True
-  isFPReg X64.MMX3 = True
-  isFPReg X64.MMX4 = True
-  isFPReg X64.MMX5 = True
-  isFPReg X64.MMX6 = True
-  isFPReg X64.MMX7 = True
+  isFPReg X64.YMM0 = True
+  isFPReg X64.YMM1 = True
+  isFPReg X64.YMM2 = True
+  isFPReg X64.YMM3 = True
+  isFPReg X64.YMM4 = True
+  isFPReg X64.YMM5 = True
+  isFPReg X64.YMM6 = True
+  isFPReg X64.YMM7 = True
   isFPReg _ = False
 
 instance IsFPReg PPC.PPCRegisters where
