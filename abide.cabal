@@ -36,7 +36,7 @@ library
                      , containers ==0.5.*
                      , filepath ==1.*
                      , lens ==4.*
-                     , megaparsec ==6.*
+                     , megaparsec ==7.*
                      , parameterized-utils ==1.*
                      , parser-combinators ==1.*
                      , text ==1.*
@@ -65,7 +65,7 @@ executable abide
                      , containers ==0.5.*
                      , filepath ==1.*
                      , lens ==4.*
-                     , megaparsec ==6.*
+                     , megaparsec ==7.*
                      , parameterized-utils ==1.*                     
                      , parser-combinators ==1.*
                      , text ==1.*

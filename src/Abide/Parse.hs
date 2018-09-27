@@ -28,7 +28,7 @@ import Abide.Types.ABI.SystemV (X86_64Classes)
 import Abide.Types.Arch.PPC as PPC
 import Abide.Types.Arch.X86_64 as X64
 
-x86_64FSTFromFile :: FilePath -> IO (Either (MP.ParseError Char T.Text) (FST X86_64 SystemV))
+x86_64FSTFromFile :: FilePath -> IO (Either (MP.ParseErrorBundle T.Text T.Text) (FST X86_64 SystemV))
 x86_64FSTFromFile fp = MP.parse (parseFST x64Classes x64Registers) fp <$> T.readFile fp
 
 --------------------------------------------------------------------------------
@@ -233,7 +233,7 @@ x86_64FSTText = T.unlines
   , "63 63 MEMORY StackMem"
   ]
 
-ppcFSTFromFile :: FilePath -> IO (Either (MP.ParseError Char T.Text) (FST PPC SystemV))
+ppcFSTFromFile :: FilePath -> IO (Either (MP.ParseErrorBundle T.Text T.Text) (FST PPC SystemV))
 ppcFSTFromFile fp = MP.parse (parseFST ppcClasses ppcRegisters) fp <$> T.readFile fp
 
 ppcFST :: FST PPC SystemV
