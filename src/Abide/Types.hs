@@ -122,3 +122,43 @@ instance (Show n, Show i, Show o) => Show (Edge n i o) where
 newtype FST arch abi = FST { _nodeMap :: M.Map UID [Edge UID (InSymbol arch abi) (OutSymbol arch abi)] }
 
 makeLenses ''FST
+
+
+--------------------------------------------------------------------------------
+-- We need to handle FP registers a special way sometimes, so define a class
+-- to check that
+
+type family ArchRegs arch = regs
+
+type instance ArchRegs X86_64 = X64.X86_64Registers
+type instance ArchRegs PPC = PPC.PPCRegisters
+
+class IsFPReg reg where
+  isFPReg :: reg -> Bool
+
+instance IsFPReg X64.X86_64Registers where
+  isFPReg X64.MMX0 = True
+  isFPReg X64.MMX1 = True
+  isFPReg X64.MMX2 = True
+  isFPReg X64.MMX3 = True
+  isFPReg X64.MMX4 = True
+  isFPReg X64.MMX5 = True
+  isFPReg X64.MMX6 = True
+  isFPReg X64.MMX7 = True
+  isFPReg _ = False
+
+instance IsFPReg PPC.PPCRegisters where
+  isFPReg PPC.F1 = True
+  isFPReg PPC.F2 = True
+  isFPReg PPC.F3 = True
+  isFPReg PPC.F4 = True
+  isFPReg PPC.F5 = True
+  isFPReg PPC.F6 = True
+  isFPReg PPC.F7 = True 
+  isFPReg PPC.F8 = True 
+  isFPReg PPC.F9 = True 
+  isFPReg PPC.F10 = True 
+  isFPReg PPC.F11 = True 
+  isFPReg PPC.F12 = True 
+  isFPReg PPC.F13 = True
+  isFPReg _ = False
