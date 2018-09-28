@@ -33,7 +33,7 @@ library
                      , bytestring ==0.10.*
                      , comonad ==5.*
                      , containers ==0.5.*
-                     , file-embed >=0.0.10.*
+                     , file-embed ==0.0.10.*
                      , filepath ==1.*
                      , lens ==4.*
                      , megaparsec ==7.*
@@ -61,7 +61,7 @@ executable abide
                      , bytestring ==0.10.*
                      , comonad ==5.*
                      , containers ==0.5.*
-                     , file-embed >=0.0.10.*
+                     , file-embed ==0.0.10.*
                      , filepath ==1.*
                      , lens ==4.*
                      , megaparsec ==7.*
