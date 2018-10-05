@@ -1,9 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 
 {-|
@@ -25,39 +21,49 @@ import           Data.Parameterized.Some ( Some(..) )
 import           Data.Proxy ( Proxy(..) )
 import qualified Data.Map.Strict as M
 import qualified Data.Tuple.Select as TS
+import           GHC.Natural
 
 import qualified Abide.Parse as P
 import           Abide.Types
 
-
-
---------------------------------------------------------------------------------
--- Getting the right FST
-class HasFST arch abi where
-  getFST :: FST arch abi
-
-instance HasFST X86_64 SystemV where
-  getFST = P.x86_64FST
-
-instance HasFST PPC SystemV where
-  getFST = P.ppcFST
-
 transduce :: forall arch abi i o.
-             ( InSymbol arch abi ~ i, OutSymbol arch abi ~ o, Eq i)
-          => FST arch abi -> [i] -> o
-transduce fst is = go fst 1 is [] 
-  where
-    go fst _ [] os = head os
-    go fst n (i:is) os =
-      let (nn, o) = traverseEdge fst n i
-      in go fst nn is (o:os)
+             ( InSymbol arch abi ~ i
+             , OutSymbol arch abi ~ o
+             , Eq i
+             , IsStack o
+             )
+          => FST arch abi -> [(i, Natural)] -> Either o StackOffset
+transduce fst is =
+  let (reg, so) = go fst 1 is []
+  in if isStack reg
+     then Right so
+     else Left reg
+    where
+      go fst _ [] os = head os
+      go fst n (i : is) os =
+        let (nn, o) = traverseEdge fst n i 0
+        in go fst nn is (o:os)
 
 -- A lot of unsafe stuff?  Maybe use types to guarantee presence 
 traverseEdge :: forall arch abi i o.
-                ( InSymbol arch abi ~ i, OutSymbol arch abi ~ o, Eq i)
-             => FST arch abi -> UID -> i -> (UID, o)
-traverseEdge fst n i = let edges = fromMaybe (error "edge lookup failed in abide")
-                                             (M.lookup n (fst ^. nodeMap))
-                           (Just e) = find ((== i) . (^. inSymbol)) edges
-                       in (e ^. dst, e ^. outSymbol)
-                       
+                ( InSymbol arch abi ~ i
+                , OutSymbol arch abi ~ o
+                , Eq i
+                , IsStack o
+                )
+             => FST arch abi
+             -> UID
+             -- ^ The current node UID, to find outgoing edges
+             -> (i, StackOffset)
+             -- ^ The input symbol and its potential size if placed on the stack
+             -> StackOffset
+             -- ^ The stack offset so far
+             -> (UID, (o, StackOffset))
+traverseEdge fst n (i, size) currOffset =
+  let edges     = fromMaybe (error "edge lookup failed in abide")
+                            (M.lookup n (fst ^. nodeMap))
+      (Just e)  = find ((== i) . (^. inSymbol)) edges
+      newOffset = if isStack (e ^. outSymbol)
+                  then size + currOffset
+                  else currOffset
+  in (e ^. dst, (e ^. outSymbol, newOffset))
