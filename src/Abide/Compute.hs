@@ -33,16 +33,16 @@ transduce :: forall arch abi i o.
              , IsStack o
              )
           => FST arch abi -> [(i, Natural)] -> Either o StackOffset
-transduce fst is =
-  let (reg, so) = go fst 1 is []
+transduce fst inputs =
+  let (reg, so) = go fst 1 0 inputs []
   in if isStack reg
      then Right so
      else Left reg
     where
-      go fst _ [] os = head os
-      go fst n (i : is) os =
-        let (nn, o) = traverseEdge fst n i 0
-        in go fst nn is (o:os)
+      go _ _ _ [] outs = head outs
+      go fst n offset (i : is) outs =
+        let (nn, (o, off)) = traverseEdge fst n i offset
+        in go fst nn off is ((o, off) : outs)
 
 -- A lot of unsafe stuff?  Maybe use types to guarantee presence 
 traverseEdge :: forall arch abi i o.
