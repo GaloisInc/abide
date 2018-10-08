@@ -21,7 +21,7 @@ import           Data.Parameterized.Some ( Some(..) )
 import           Data.Proxy ( Proxy(..) )
 import qualified Data.Map.Strict as M
 import qualified Data.Tuple.Select as TS
-import           GHC.Natural
+import           Numeric.Natural
 
 import qualified Abide.Parse as P
 import           Abide.Types

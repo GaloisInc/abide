@@ -27,7 +27,7 @@ import           Control.Lens ( Lens', makeLenses, (^.) )
 import qualified Data.Map.Strict as M
 import qualified Data.Parameterized.Ctx as C
 import qualified Data.Set as S
-import           GHC.Natural
+import           Numeric.Natural
 
 import qualified Abide.Types.ABI.SystemV as SV
 import qualified Abide.Types.Arch.PPC as PPC
