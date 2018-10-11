@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -33,6 +34,12 @@ import Abide.Types.Arch.X86_64 as X64
 
 x86_64FSTFromFile :: FilePath -> IO (Either (MP.ParseErrorBundle T.Text T.Text) (FST X86_64 SystemV))
 x86_64FSTFromFile fp = MP.parse (parseFST x64Classes x64Registers) fp <$> T.readFile fp
+
+instance HasFST X86_64 SystemV where
+  getFST = x86_64FST
+
+instance HasFST PPC SystemV where
+  getFST = ppcFST
 
 --------------------------------------------------------------------------------
 -- Below here is a big hack.  This is a temporary until we have a plan for how

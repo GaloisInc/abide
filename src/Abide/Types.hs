@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
@@ -26,6 +27,7 @@ import           Control.Lens ( Lens', makeLenses, (^.) )
 import qualified Data.Map.Strict as M
 import qualified Data.Parameterized.Ctx as C
 import qualified Data.Set as S
+import           Numeric.Natural
 
 import qualified Abide.Types.ABI.SystemV as SV
 import qualified Abide.Types.Arch.PPC as PPC
@@ -123,6 +125,35 @@ newtype FST arch abi = FST { _nodeMap :: M.Map UID [Edge UID (InSymbol arch abi)
 
 makeLenses ''FST
 
+type StackOffset = Natural
+
+
+--------------------------------------------------------------------------------
+-- Type classes
+
+-- This class just lets us get an FST for a particular arch/abi combo in a
+-- generic way.
+class HasFST arch abi where
+  getFST :: FST arch abi
+
+-- We need to differentiate between parameters placed in a register versus
+-- those that are passed on the stack.  For now, we can't do this by type
+-- alone, so we use a type class to say which constructors correspond to the
+-- stack and which do not.
+class IsStack reg where
+  isStack :: reg -> Bool
+
+instance IsStack X64.X86_64Registers where
+  isStack X64.StackInt   = True
+  isStack X64.StackFloat = True
+  isStack X64.StackMem   = True
+  isStack _              = False
+
+instance IsStack PPC.PPCRegisters where
+  isStack PPC.StackGP    = True
+  isStack PPC.StackFloat = True
+  isStack PPC.StackVec   = True
+  isStack _              = False
 
 --------------------------------------------------------------------------------
 -- FP registers sometimes need special handling.
