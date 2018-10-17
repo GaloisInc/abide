@@ -13,8 +13,26 @@ import qualified Data.Universe as U
 -- Currently a bit of a hack with the various Stack constructors, maybe use
 -- something Either-like instead?
 data X86_64Registers
-  = RDI | RSI | RDX | RCX | R8 | R9 | StackInt
-  | YMM0 | YMM1 | YMM2 | YMM3 | YMM4 | YMM5 | YMM6 | YMM7 | StackFloat
+  = RAX
+  | RBX
+  | RCX
+  | RDX
+  | RSI
+  | RDI
+  | RBP
+  | RSP
+  | R8
+  | R9
+  | YMM0
+  | YMM1
+  | YMM2
+  | YMM3
+  | YMM4
+  | YMM5
+  | YMM6
+  | YMM7
+  | StackInt
+  | StackFloat
   | StackMem
   deriving (Bounded, Enum, Eq, Ord, Show)
 

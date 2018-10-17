@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
@@ -187,3 +188,18 @@ instance IsFPReg PPC.PPCRegisters where
   isFPReg PPC.F12 = True 
   isFPReg PPC.F13 = True
   isFPReg _ = False
+
+class ReturnABI arch abi where
+  computeReturn :: InSymbol arch abi -> OutSymbol arch abi
+
+instance ReturnABI X86_64 SystemV where
+  computeReturn = \case
+    SV.INTEGER -> X64.RAX
+    SV.SSE -> X64.YMM0
+    c -> error $ "unsuported x86_64 class:" ++ show c
+
+instance ReturnABI PPC SystemV where
+  computeReturn = \case
+    SV.PPCGP -> PPC.R3
+    SV.PPCFLOAT-> PPC.F1
+
