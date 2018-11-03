@@ -12,19 +12,41 @@ transducer, as well as for getting at the specific FSTs for an
 architecture/ABI pair.
 -}
 
-module Abide.Compute where
+module Abide.Compute
+  ( computeParam
+  ) where
 
 import           Control.Lens ( (^.) )
 import           Data.List ( find )
 import           Data.Maybe ( fromJust, fromMaybe )
-import           Data.Parameterized.Some ( Some(..) )
-import           Data.Proxy ( Proxy(..) )
+import           Data.Parameterized.NatRepr
+import           Data.Proxy
 import qualified Data.Map.Strict as M
 import qualified Data.Tuple.Select as TS
 import           Numeric.Natural
 
+import           Abide.CTypes
 import qualified Abide.Parse as P
 import           Abide.Types
+
+computeParam
+  :: ( ParamABI arch abi
+     , CTypeInput arch width abi
+     , InSymbol arch abi ~ i
+     , OutSymbol arch abi ~ o
+     , Eq i
+     , IsStack o
+     )
+  => Proxy (arch, abi)
+  -> NatRepr width
+  -> [CType]
+  -> Either o StackOffset
+computeParam proxy width
+  = transduce paramFST . map
+      (\ctype ->
+        ( ctypeInputClass proxy width ctype
+        , ctypeInputSize proxy width ctype
+        ))
 
 transduce :: forall arch abi i o.
              ( InSymbol arch abi ~ i

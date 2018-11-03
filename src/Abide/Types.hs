@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
@@ -26,10 +27,13 @@ module Abide.Types where
 
 import           Control.Lens ( Lens', makeLenses, (^.) )
 import qualified Data.Map.Strict as M
-import qualified Data.Parameterized.Ctx as C
+import           Data.Proxy
+import           Data.Parameterized.NatRepr
 import qualified Data.Set as S
+import           GHC.TypeLits
 import           Numeric.Natural
 
+import           Abide.CTypes
 import qualified Abide.Types.ABI.SystemV as SV
 import qualified Abide.Types.Arch.PPC as PPC
 import qualified Abide.Types.Arch.X86_64 as X64
@@ -134,8 +138,65 @@ type StackOffset = Natural
 
 -- This class just lets us get an FST for a particular arch/abi combo in a
 -- generic way.
-class HasFST arch abi where
-  getFST :: FST arch abi
+class ParamABI arch abi where
+  paramFST :: FST arch abi
+
+class CTypeInput arch (width :: Nat) abi where
+  ctypeInputClass
+    :: Proxy (arch, abi) -> NatRepr width -> CType -> InSymbol arch abi
+
+  ctypeInputSize :: Proxy (arch, abi) -> NatRepr width -> CType -> Natural
+
+instance CTypeInput X86_64 64 SystemV where
+  ctypeInputClass _ _ = \case
+    CInt8   -> SV.INTEGER
+    CInt16  -> SV.INTEGER
+    CInt32  -> SV.INTEGER
+    CInt64  -> SV.INTEGER
+    CFloat  -> SV.SSE
+    CDouble -> SV.SSE
+
+  ctypeInputSize _ _ = \case
+    CInt8   -> 8
+    CInt16  -> 8
+    CInt32  -> 8
+    CInt64  -> 8
+    CFloat  -> 8
+    CDouble -> 8
+
+instance CTypeInput PPC 32 SystemV where
+  ctypeInputClass _ _ = \case
+    CInt8   -> SV.PPCGP
+    CInt16  -> SV.PPCGP
+    CInt32  -> SV.PPCGP
+    CInt64  -> error "unsupported int64 type on PPC32 SystemV."
+    CFloat  -> SV.PPCFLOAT
+    CDouble -> SV.PPCFLOAT
+
+  ctypeInputSize _ _ = \case
+    CInt8   -> 4
+    CInt16  -> 4
+    CInt32  -> 4
+    CInt64  -> 8
+    CFloat  -> 4
+    CDouble -> 8
+
+instance CTypeInput PPC 64 SystemV where
+  ctypeInputClass _ _ = \case
+    CInt8   -> SV.PPCGP
+    CInt16  -> SV.PPCGP
+    CInt32  -> SV.PPCGP
+    CInt64  -> SV.PPCGP
+    CFloat  -> SV.PPCFLOAT
+    CDouble -> SV.PPCFLOAT
+
+  ctypeInputSize _ _ = \case
+    CInt8   -> 8
+    CInt16  -> 8
+    CInt32  -> 8
+    CInt64  -> 8
+    CFloat  -> 8
+    CDouble -> 8
 
 -- We need to differentiate between parameters placed in a register versus
 -- those that are passed on the stack.  For now, we can't do this by type
@@ -190,16 +251,27 @@ instance IsFPReg PPC.PPCRegisters where
   isFPReg _ = False
 
 class ReturnABI arch abi where
-  computeReturn :: InSymbol arch abi -> OutSymbol arch abi
+  classReturn
+    :: Proxy (arch, abi)
+    -> InSymbol arch abi
+    -> OutSymbol arch abi
 
 instance ReturnABI X86_64 SystemV where
-  computeReturn = \case
+  classReturn _ = \case
     SV.INTEGER -> X64.RAX
     SV.SSE -> X64.YMM0
     c -> error $ "unsuported x86_64 class:" ++ show c
 
 instance ReturnABI PPC SystemV where
-  computeReturn = \case
+  classReturn _ = \case
     SV.PPCGP -> PPC.R3
-    SV.PPCFLOAT-> PPC.F1
+    SV.PPCFLOAT -> PPC.F1
 
+computeReturn
+  :: forall arch width abi
+   . (ReturnABI arch abi, CTypeInput arch width abi)
+  => Proxy (arch, abi)
+  -> NatRepr width
+  -> CType
+  -> OutSymbol arch abi
+computeReturn proxy width = classReturn proxy . ctypeInputClass proxy width

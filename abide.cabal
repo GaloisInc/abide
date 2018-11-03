@@ -20,6 +20,7 @@ description:
 library
   exposed-modules:     Abide.ABI.SystemV
                      , Abide.Compute
+                     , Abide.CTypes
                      , Abide.Generate
                      , Abide.Parse
                      , Abide.Parse.ABI
@@ -48,6 +49,7 @@ library
 executable abide
   main-is:             Main.hs
   other-modules:       Abide.ABI.SystemV
+                     , Abide.CTypes
                      , Abide.Generate
                      , Abide.Parse
                      , Abide.Parse.ABI
