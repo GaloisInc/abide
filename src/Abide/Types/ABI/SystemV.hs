@@ -20,9 +20,13 @@ data X86_64Classes
   | MEMORY
   deriving (Bounded, Enum, Eq, Ord, Show)
 
-data PPCClasses = PPCGP | PPCFLOAT
+data PPC32Classes = PPC32GP | PPC32FLOAT
   deriving (Bounded, Enum, Eq, Ord, Show)
 
-instance U.Universe PPCClasses
+data PPC64Classes = PPC64GP | PPC64FLOAT
+  deriving (Bounded, Enum, Eq, Ord, Show)
+
+instance U.Universe PPC32Classes
+instance U.Universe PPC64Classes
 instance U.Universe X86_64Classes
 

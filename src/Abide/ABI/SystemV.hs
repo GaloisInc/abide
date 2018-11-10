@@ -5,7 +5,8 @@ import qualified Data.Universe as U
 
 import           Abide.Types
 import           Abide.Types.ABI.SystemV
-import qualified Abide.Types.Arch.PPC as PPC
+import qualified Abide.Types.Arch.PPC32 as PPC32
+import qualified Abide.Types.Arch.PPC64 as PPC64
 import qualified Abide.Types.Arch.X86_64 as X64
 
 {-|
@@ -32,14 +33,28 @@ x86_64Typemap = M.fromList
 
 x86fp = "x86_64"
 
-ppcGPRegs = [PPC.R3, PPC.R4, PPC.R5, PPC.R6, PPC.R7, PPC.R8, PPC.R9, PPC.R10, PPC.StackGP]
+ppc32GPRegs = [ PPC32.R3, PPC32.R4, PPC32.R5, PPC32.R6, PPC32.R7
+              , PPC32.R8, PPC32.R9, PPC32.R10, PPC32.StackGP]
 
-ppcFloatRegs = [ PPC.F1, PPC.F2, PPC.F3, PPC.F4, PPC.F5, PPC.F6, PPC.F7
-               , PPC.F8, PPC.F9, PPC.F10, PPC.F11, PPC.F12, PPC.F13, PPC.StackFloat ]
+ppc32FloatRegs = [ PPC32.F1, PPC32.F2, PPC32.F3, PPC32.F4, PPC32.F5, PPC32.F6
+                 , PPC32.F7, PPC32.F8, PPC32.F9, PPC32.F10, PPC32.F11, PPC32.F12
+                 , PPC32.F13, PPC32.StackFloat ]
 
-ppcTypemap :: TypeMap PPCClasses PPC.PPCRegisters
-ppcTypemap = M.fromList
-  [ (PPCGP, ppcGPRegs)
-  , (PPCFLOAT, ppcFloatRegs)
+ppc64GPRegs = [ PPC64.R3, PPC64.R4, PPC64.R5, PPC64.R6, PPC64.R7
+              , PPC64.R8, PPC64.R9, PPC64.R10, PPC64.StackGP]
+
+ppc64FloatRegs = [ PPC64.F1, PPC64.F2, PPC64.F3, PPC64.F4, PPC64.F5, PPC64.F6
+                 , PPC64.F7 , PPC64.F8, PPC64.F9, PPC64.F10 , PPC64.F11
+                 , PPC64.F12, PPC64.F13, PPC64.StackFloat ]
+
+ppc32Typemap :: TypeMap PPC32Classes PPC32.PPC32Registers
+ppc32Typemap = M.fromList
+  [ (PPC32GP, ppc32GPRegs)
+  , (PPC32FLOAT, ppc32FloatRegs)
   ]
-               
+
+ppcTypemap :: TypeMap PPC64Classes PPC64.PPC64Registers
+ppcTypemap = M.fromList
+  [ (PPC64GP, ppc64GPRegs)
+  , (PPC64FLOAT, ppc64FloatRegs)
+  ]

@@ -1,15 +1,15 @@
 {-|
-Module : Abide.Types.Arch.PPC
+Module : Abide.Types.Arch.PPC64
 Copyright : (c) 2018 Galois Inc.
 License : BSD3 (see LICENSE)
 
-PPC specific types
+PPC64 specific types
 -}
-module Abide.Types.Arch.PPC where
+module Abide.Types.Arch.PPC64 where
 
 import qualified Data.Universe as U
 
-data PPCRegisters
+data PPC64Registers
   = R3
   | R4
   | R5
@@ -48,5 +48,4 @@ data PPCRegisters
   | StackVec
   deriving (Bounded, Enum, Eq, Ord, Show)
 
-instance U.Universe PPCRegisters
-
+instance U.Universe PPC64Registers

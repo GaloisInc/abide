@@ -31,6 +31,10 @@ x64Classes =  MP.string "INTEGER"     $> SV.INTEGER
           <|> MP.string "NO_CLASS"    $> SV.NO_CLASS
           <|> MP.string "MEMORY"      $> SV.MEMORY
 
-ppcClasses :: Parser SV.PPCClasses
-ppcClasses =  MP.string "PPCGP"    $> SV.PPCGP
-          <|> MP.string "PPCFLOAT" $> SV.PPCFLOAT
+ppc32Classes :: Parser SV.PPC32Classes
+ppc32Classes =  MP.string "PPC32GP"    $> SV.PPC32GP
+            <|> MP.string "PPC32FLOAT" $> SV.PPC32FLOAT
+
+ppc64Classes :: Parser SV.PPC64Classes
+ppc64Classes =  MP.string "PPC64GP"    $> SV.PPC64GP
+            <|> MP.string "PPC64FLOAT" $> SV.PPC64FLOAT

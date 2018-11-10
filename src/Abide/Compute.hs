@@ -31,21 +31,20 @@ import           Abide.Types
 
 computeParam
   :: ( ParamABI arch abi
-     , CTypeInput arch width abi
+     , CTypeInput arch abi
      , InSymbol arch abi ~ i
      , OutSymbol arch abi ~ o
      , Eq i
      , IsStack o
      )
   => Proxy (arch, abi)
-  -> NatRepr width
   -> [CType]
   -> Either o StackOffset
-computeParam proxy width
+computeParam proxy
   = transduce paramFST . map
       (\ctype ->
-        ( ctypeInputClass proxy width ctype
-        , ctypeInputSize proxy width ctype
+        ( ctypeInputClass proxy ctype
+        , ctypeInputSize proxy ctype
         ))
 
 transduce :: forall arch abi i o.

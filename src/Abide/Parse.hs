@@ -29,7 +29,8 @@ import Abide.Parse.Arch
 import Abide.Parse.Common
 import Abide.Types
 import Abide.Types.ABI.SystemV (X86_64Classes)
-import Abide.Types.Arch.PPC as PPC
+import Abide.Types.Arch.PPC32 as PPC32
+import Abide.Types.Arch.PPC64 as PPC64
 import Abide.Types.Arch.X86_64 as X64
 
 x86_64FSTFromFile :: FilePath -> IO (Either (MP.ParseErrorBundle T.Text T.Text) (FST X86_64 SystemV))
@@ -38,8 +39,12 @@ x86_64FSTFromFile fp = MP.parse (parseFST x64Classes x64Registers) fp <$> T.read
 instance ParamABI X86_64 SystemV where
   paramFST = x86_64FST
 
-instance ParamABI PPC SystemV where
-  paramFST = ppcFST
+instance ParamABI PPC32 SystemV where
+  paramFST = ppc32FST
+
+instance ParamABI PPC64 SystemV where
+  paramFST = ppc64FST
+
 
 --------------------------------------------------------------------------------
 -- Below here is a big hack.  This is a temporary until we have a plan for how
@@ -54,10 +59,19 @@ x86_64FST =
 x86_64FSTFile :: BS.ByteString
 x86_64FSTFile = $(FE.embedFile "fst-files/x86_64.fst.txt")
 
-ppcFST :: FST PPC SystemV
-ppcFST =
-  case MP.parse (parseFST ppcClasses ppcRegisters) "" (T.decodeUtf8 ppcFSTFile) of
+ppc32FST :: FST PPC32 SystemV
+ppc32FST =
+  case MP.parse (parseFST ppc32Classes ppc32Registers) "" (T.decodeUtf8 ppc32FSTFile) of
     Right fst -> fst
 
-ppcFSTFile :: BS.ByteString
-ppcFSTFile = $(FE.embedFile "fst-files/ppc.fst.txt")
+ppc64FST :: FST PPC64 SystemV
+ppc64FST =
+  case MP.parse (parseFST ppc64Classes ppc64Registers) "" (T.decodeUtf8 ppc64FSTFile) of
+    Right fst -> fst
+
+
+ppc32FSTFile :: BS.ByteString
+ppc32FSTFile = undefined
+
+ppc64FSTFile :: BS.ByteString
+ppc64FSTFile = undefined

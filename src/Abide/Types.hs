@@ -35,7 +35,8 @@ import           Numeric.Natural
 
 import           Abide.CTypes
 import qualified Abide.Types.ABI.SystemV as SV
-import qualified Abide.Types.Arch.PPC as PPC
+import qualified Abide.Types.Arch.PPC32 as PPC32
+import qualified Abide.Types.Arch.PPC64 as PPC64
 import qualified Abide.Types.Arch.X86_64 as X64
 
 --------------------------------------------------------------------------------
@@ -43,19 +44,23 @@ import qualified Abide.Types.Arch.X86_64 as X64
 
 data X86_64
 
-data PPC
+data PPC32
+
+data PPC64
 
 data SystemV
 
 type family InSymbol arch abi = i | i -> arch abi
 
 type instance InSymbol X86_64 SystemV = SV.X86_64Classes
-type instance InSymbol PPC SystemV = SV.PPCClasses
+type instance InSymbol PPC32 SystemV = SV.PPC32Classes
+type instance InSymbol PPC64 SystemV = SV.PPC64Classes
 
 type family OutSymbol arch abi = o | o -> arch abi
 
 type instance OutSymbol X86_64 SystemV = X64.X86_64Registers
-type instance OutSymbol PPC SystemV = PPC.PPCRegisters
+type instance OutSymbol PPC32 SystemV = PPC32.PPC32Registers
+type instance OutSymbol PPC64 SystemV = PPC64.PPC64Registers
 
 --------------------------------------------------------------------------------
 -- Specialized FST types for register allocation
@@ -141,14 +146,14 @@ type StackOffset = Natural
 class ParamABI arch abi where
   paramFST :: FST arch abi
 
-class CTypeInput arch (width :: Nat) abi where
+class CTypeInput arch abi where
   ctypeInputClass
-    :: Proxy (arch, abi) -> NatRepr width -> CType -> InSymbol arch abi
+    :: Proxy (arch, abi) -> CType -> InSymbol arch abi
 
-  ctypeInputSize :: Proxy (arch, abi) -> NatRepr width -> CType -> Natural
+  ctypeInputSize :: Proxy (arch, abi) -> CType -> Natural
 
-instance CTypeInput X86_64 64 SystemV where
-  ctypeInputClass _ _ = \case
+instance CTypeInput X86_64 SystemV where
+  ctypeInputClass _ = \case
     CInt8   -> SV.INTEGER
     CInt16  -> SV.INTEGER
     CInt32  -> SV.INTEGER
@@ -156,7 +161,7 @@ instance CTypeInput X86_64 64 SystemV where
     CFloat  -> SV.SSE
     CDouble -> SV.SSE
 
-  ctypeInputSize _ _ = \case
+  ctypeInputSize _ = \case
     CInt8   -> 8
     CInt16  -> 8
     CInt32  -> 8
@@ -164,16 +169,16 @@ instance CTypeInput X86_64 64 SystemV where
     CFloat  -> 8
     CDouble -> 8
 
-instance CTypeInput PPC 32 SystemV where
-  ctypeInputClass _ _ = \case
-    CInt8   -> SV.PPCGP
-    CInt16  -> SV.PPCGP
-    CInt32  -> SV.PPCGP
+instance CTypeInput PPC32 SystemV where
+  ctypeInputClass _ = \case
+    CInt8   -> SV.PPC32GP
+    CInt16  -> SV.PPC32GP
+    CInt32  -> SV.PPC32GP
     CInt64  -> error "unsupported int64 type on PPC32 SystemV."
-    CFloat  -> SV.PPCFLOAT
-    CDouble -> SV.PPCFLOAT
+    CFloat  -> SV.PPC32FLOAT
+    CDouble -> SV.PPC32FLOAT
 
-  ctypeInputSize _ _ = \case
+  ctypeInputSize _ = \case
     CInt8   -> 4
     CInt16  -> 4
     CInt32  -> 4
@@ -181,16 +186,16 @@ instance CTypeInput PPC 32 SystemV where
     CFloat  -> 4
     CDouble -> 8
 
-instance CTypeInput PPC 64 SystemV where
-  ctypeInputClass _ _ = \case
-    CInt8   -> SV.PPCGP
-    CInt16  -> SV.PPCGP
-    CInt32  -> SV.PPCGP
-    CInt64  -> SV.PPCGP
-    CFloat  -> SV.PPCFLOAT
-    CDouble -> SV.PPCFLOAT
+instance CTypeInput PPC64 SystemV where
+  ctypeInputClass _ = \case
+    CInt8   -> SV.PPC64GP
+    CInt16  -> SV.PPC64GP
+    CInt32  -> SV.PPC64GP
+    CInt64  -> SV.PPC64GP
+    CFloat  -> SV.PPC64FLOAT
+    CDouble -> SV.PPC64FLOAT
 
-  ctypeInputSize _ _ = \case
+  ctypeInputSize _ = \case
     CInt8   -> 8
     CInt16  -> 8
     CInt32  -> 8
@@ -211,11 +216,18 @@ instance IsStack X64.X86_64Registers where
   isStack X64.StackMem   = True
   isStack _              = False
 
-instance IsStack PPC.PPCRegisters where
-  isStack PPC.StackGP    = True
-  isStack PPC.StackFloat = True
-  isStack PPC.StackVec   = True
-  isStack _              = False
+instance IsStack PPC64.PPC64Registers where
+  isStack PPC64.StackGP    = True
+  isStack PPC64.StackFloat = True
+  isStack PPC64.StackVec   = True
+  isStack _                = False
+
+instance IsStack PPC32.PPC32Registers where
+  isStack PPC32.StackGP    = True
+  isStack PPC32.StackFloat = True
+  isStack PPC32.StackVec   = True
+  isStack _                = False
+
 
 --------------------------------------------------------------------------------
 -- FP registers sometimes need special handling.
@@ -234,20 +246,36 @@ instance IsFPReg X64.X86_64Registers where
   isFPReg X64.YMM7 = True
   isFPReg _ = False
 
-instance IsFPReg PPC.PPCRegisters where
-  isFPReg PPC.F1 = True
-  isFPReg PPC.F2 = True
-  isFPReg PPC.F3 = True
-  isFPReg PPC.F4 = True
-  isFPReg PPC.F5 = True
-  isFPReg PPC.F6 = True
-  isFPReg PPC.F7 = True 
-  isFPReg PPC.F8 = True 
-  isFPReg PPC.F9 = True 
-  isFPReg PPC.F10 = True 
-  isFPReg PPC.F11 = True 
-  isFPReg PPC.F12 = True 
-  isFPReg PPC.F13 = True
+instance IsFPReg PPC64.PPC64Registers where
+  isFPReg PPC64.F1 = True
+  isFPReg PPC64.F2 = True
+  isFPReg PPC64.F3 = True
+  isFPReg PPC64.F4 = True
+  isFPReg PPC64.F5 = True
+  isFPReg PPC64.F6 = True
+  isFPReg PPC64.F7 = True
+  isFPReg PPC64.F8 = True
+  isFPReg PPC64.F9 = True
+  isFPReg PPC64.F10 = True
+  isFPReg PPC64.F11 = True
+  isFPReg PPC64.F12 = True
+  isFPReg PPC64.F13 = True
+  isFPReg _ = False
+
+instance IsFPReg PPC32.PPC32Registers where
+  isFPReg PPC32.F1 = True
+  isFPReg PPC32.F2 = True
+  isFPReg PPC32.F3 = True
+  isFPReg PPC32.F4 = True
+  isFPReg PPC32.F5 = True
+  isFPReg PPC32.F6 = True
+  isFPReg PPC32.F7 = True
+  isFPReg PPC32.F8 = True
+  isFPReg PPC32.F9 = True
+  isFPReg PPC32.F10 = True
+  isFPReg PPC32.F11 = True
+  isFPReg PPC32.F12 = True
+  isFPReg PPC32.F13 = True
   isFPReg _ = False
 
 class ReturnABI arch abi where
@@ -262,16 +290,21 @@ instance ReturnABI X86_64 SystemV where
     SV.SSE -> X64.YMM0
     c -> error $ "unsuported x86_64 class:" ++ show c
 
-instance ReturnABI PPC SystemV where
+instance ReturnABI PPC64 SystemV where
   classReturn _ = \case
-    SV.PPCGP -> PPC.R3
-    SV.PPCFLOAT -> PPC.F1
+    SV.PPC64GP -> PPC64.R3
+    SV.PPC64FLOAT -> PPC64.F1
+
+instance ReturnABI PPC32 SystemV where
+  classReturn _ = \case
+    SV.PPC32GP -> PPC32.R3
+    SV.PPC32FLOAT -> PPC32.F1
+
 
 computeReturn
   :: forall arch width abi
-   . (ReturnABI arch abi, CTypeInput arch width abi)
+   . (ReturnABI arch abi, CTypeInput arch abi)
   => Proxy (arch, abi)
-  -> NatRepr width
   -> CType
   -> OutSymbol arch abi
-computeReturn proxy width = classReturn proxy . ctypeInputClass proxy width
+computeReturn proxy = classReturn proxy . ctypeInputClass proxy

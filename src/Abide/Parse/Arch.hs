@@ -19,7 +19,8 @@ import qualified Text.Megaparsec.Char as MP
 import qualified Text.Megaparsec.Char.Lexer as MPL
 
 import           Abide.Parse.Common
-import           Abide.Types.Arch.PPC as PPC
+import           Abide.Types.Arch.PPC32 as PPC32
+import           Abide.Types.Arch.PPC64 as PPC64
 import           Abide.Types.Arch.X86_64 as X64
 
 x64Registers :: Parser X86_64Registers
@@ -41,27 +42,52 @@ x64Registers =  MP.string "RDI" $> RDI
             <|> MP.string "StackFloat" $> X64.StackFloat
             <|> MP.string "StackMem" $> StackMem
 
-ppcRegisters :: Parser PPCRegisters
-ppcRegisters =  MP.string "R3"  $> PPC.R3
-            <|> MP.string "R4"  $> PPC.R4
-            <|> MP.string "R5"  $> PPC.R5
-            <|> MP.string "R6"  $> PPC.R6
-            <|> MP.string "R7"  $> PPC.R7
-            <|> MP.string "R8"  $> PPC.R8
-            <|> MP.string "R9"  $> PPC.R9
-            <|> MP.string "R10" $> PPC.R10  -- match these before F1
-            <|> MP.string "F10" $> PPC.F10
-            <|> MP.string "F11" $> PPC.F11
-            <|> MP.string "F12" $> PPC.F12
-            <|> MP.string "F13" $> PPC.F13
-            <|> MP.string "F1"  $> PPC.F1
-            <|> MP.string "F2"  $> PPC.F2
-            <|> MP.string "F3"  $> PPC.F3
-            <|> MP.string "F4"  $> PPC.F4
-            <|> MP.string "F5"  $> PPC.F5
-            <|> MP.string "F6"  $> PPC.F6
-            <|> MP.string "F7"  $> PPC.F7
-            <|> MP.string "F8"  $> PPC.F8
-            <|> MP.string "F9"  $> PPC.F9
-            <|> MP.string "StackGP" $> PPC.StackGP
-            <|> MP.string "StackFloat" $> PPC.StackFloat            
+ppc32Registers :: Parser PPC32Registers
+ppc32Registers =  MP.string "R3"  $> PPC32.R3
+              <|> MP.string "R4"  $> PPC32.R4
+              <|> MP.string "R5"  $> PPC32.R5
+              <|> MP.string "R6"  $> PPC32.R6
+              <|> MP.string "R7"  $> PPC32.R7
+              <|> MP.string "R8"  $> PPC32.R8
+              <|> MP.string "R9"  $> PPC32.R9
+              <|> MP.string "R10" $> PPC32.R10
+              <|> MP.string "F10" $> PPC32.F10   -- match these before F1
+              <|> MP.string "F11" $> PPC32.F11
+              <|> MP.string "F12" $> PPC32.F12
+              <|> MP.string "F13" $> PPC32.F13
+              <|> MP.string "F1"  $> PPC32.F1
+              <|> MP.string "F2"  $> PPC32.F2
+              <|> MP.string "F3"  $> PPC32.F3
+              <|> MP.string "F4"  $> PPC32.F4
+              <|> MP.string "F5"  $> PPC32.F5
+              <|> MP.string "F6"  $> PPC32.F6
+              <|> MP.string "F7"  $> PPC32.F7
+              <|> MP.string "F8"  $> PPC32.F8
+              <|> MP.string "F9"  $> PPC32.F9
+              <|> MP.string "StackGP" $> PPC32.StackGP
+              <|> MP.string "StackFloat" $> PPC32.StackFloat
+
+ppc64Registers :: Parser PPC64Registers
+ppc64Registers =  MP.string "R3"  $> PPC64.R3
+              <|> MP.string "R4"  $> PPC64.R4
+              <|> MP.string "R5"  $> PPC64.R5
+              <|> MP.string "R6"  $> PPC64.R6
+              <|> MP.string "R7"  $> PPC64.R7
+              <|> MP.string "R8"  $> PPC64.R8
+              <|> MP.string "R9"  $> PPC64.R9
+              <|> MP.string "R10" $> PPC64.R10
+              <|> MP.string "F10" $> PPC64.F10   -- match these before F1
+              <|> MP.string "F11" $> PPC64.F11
+              <|> MP.string "F12" $> PPC64.F12
+              <|> MP.string "F13" $> PPC64.F13
+              <|> MP.string "F1"  $> PPC64.F1
+              <|> MP.string "F2"  $> PPC64.F2
+              <|> MP.string "F3"  $> PPC64.F3
+              <|> MP.string "F4"  $> PPC64.F4
+              <|> MP.string "F5"  $> PPC64.F5
+              <|> MP.string "F6"  $> PPC64.F6
+              <|> MP.string "F7"  $> PPC64.F7
+              <|> MP.string "F8"  $> PPC64.F8
+              <|> MP.string "F9"  $> PPC64.F9
+              <|> MP.string "StackGP" $> PPC64.StackGP
+              <|> MP.string "StackFloat" $> PPC64.StackFloat
