@@ -1,5 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
 {-|
@@ -36,6 +38,7 @@ computeParam
      , OutSymbol arch abi ~ o
      , Eq i
      , IsStack o
+     , ArchParamBaseOffset arch
      )
   => Proxy (arch, abi)
   -> [CType]
@@ -52,6 +55,7 @@ transduce :: forall arch abi i o.
              , OutSymbol arch abi ~ o
              , Eq i
              , IsStack o
+             , ArchParamBaseOffset arch
              )
           => FST arch abi -> [(i, Natural)] -> Either o StackOffset
 transduce fst inputs =
@@ -71,6 +75,7 @@ traverseEdge :: forall arch abi i o.
                 , OutSymbol arch abi ~ o
                 , Eq i
                 , IsStack o
+                , ArchParamBaseOffset arch
                 )
              => FST arch abi
              -> UID
@@ -87,4 +92,4 @@ traverseEdge fst n (i, size) currOffset =
       newOffset = if isStack (e ^. outSymbol)
                   then size + currOffset
                   else currOffset
-  in (e ^. dst, (e ^. outSymbol, newOffset))
+  in (e ^. dst, (e ^. outSymbol, newOffset + (paramBaseOffset (Proxy @arch))))

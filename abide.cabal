@@ -58,7 +58,8 @@ executable abide
                      , Abide.Parse.Common
                      , Abide.Types
                      , Abide.Types.ABI.SystemV
-                     , Abide.Types.Arch.PPC
+                     , Abide.Types.Arch.PPC32
+                     , Abide.Types.Arch.PPC64
                      , Abide.Types.Arch.X86_64
   build-depends:       base >=4.10 && <4.13
                      , bytestring ==0.10.*

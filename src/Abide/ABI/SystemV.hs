@@ -44,8 +44,8 @@ ppc64GPRegs = [ PPC64.R3, PPC64.R4, PPC64.R5, PPC64.R6, PPC64.R7
               , PPC64.R8, PPC64.R9, PPC64.R10, PPC64.StackGP]
 
 ppc64FloatRegs = [ PPC64.F1, PPC64.F2, PPC64.F3, PPC64.F4, PPC64.F5, PPC64.F6
-                 , PPC64.F7 , PPC64.F8, PPC64.F9, PPC64.F10 , PPC64.F11
-                 , PPC64.F12, PPC64.F13, PPC64.StackFloat ]
+                 , PPC64.F7, PPC64.F8, PPC64.F9, PPC64.F10, PPC64.F11, PPC64.F12
+                 , PPC64.F13, PPC64.StackFloat ]
 
 ppc32Typemap :: TypeMap PPC32Classes PPC32.PPC32Registers
 ppc32Typemap = M.fromList
@@ -53,8 +53,8 @@ ppc32Typemap = M.fromList
   , (PPC32FLOAT, ppc32FloatRegs)
   ]
 
-ppcTypemap :: TypeMap PPC64Classes PPC64.PPC64Registers
-ppcTypemap = M.fromList
+ppc64Typemap :: TypeMap PPC64Classes PPC64.PPC64Registers
+ppc64Typemap = M.fromList
   [ (PPC64GP, ppc64GPRegs)
   , (PPC64FLOAT, ppc64FloatRegs)
   ]

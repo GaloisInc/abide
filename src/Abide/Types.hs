@@ -217,10 +217,7 @@ instance IsStack X64.X86_64Registers where
   isStack _              = False
 
 instance IsStack PPC64.PPC64Registers where
-  isStack PPC64.StackGP    = True
-  isStack PPC64.StackFloat = True
-  isStack PPC64.StackVec   = True
-  isStack _                = False
+  isStack _                = True
 
 instance IsStack PPC32.PPC32Registers where
   isStack PPC32.StackGP    = True
@@ -228,6 +225,24 @@ instance IsStack PPC32.PPC32Registers where
   isStack PPC32.StackVec   = True
   isStack _                = False
 
+
+-- This class is for dealing with architecture-specific fixed offsets.  All
+-- units are in bytes.
+class ArchParamBaseOffset arch where
+  paramBaseOffset :: Proxy arch -> Natural
+  stackAlignment :: Proxy arch -> Natural
+
+instance ArchParamBaseOffset PPC32 where
+  paramBaseOffset _ = 0 -- 8
+  stackAlignment _ = 4
+
+instance ArchParamBaseOffset PPC64 where
+  paramBaseOffset _ = 40 -- 48?
+  stackAlignment _ = 8
+
+instance ArchParamBaseOffset X86_64 where
+  paramBaseOffset _ = 0 -- 16? (saved RBP and return)
+  stackAlignment _ = 8
 
 --------------------------------------------------------------------------------
 -- FP registers sometimes need special handling.
@@ -300,7 +315,6 @@ instance ReturnABI PPC32 SystemV where
     SV.PPC32GP -> PPC32.R3
     SV.PPC32FLOAT -> PPC32.F1
 
-
 computeReturn
   :: forall arch width abi
    . (ReturnABI arch abi, CTypeInput arch abi)
@@ -308,3 +322,5 @@ computeReturn
   -> CType
   -> OutSymbol arch abi
 computeReturn proxy = classReturn proxy . ctypeInputClass proxy
+
+
