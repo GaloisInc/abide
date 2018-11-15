@@ -71,7 +71,7 @@ ppc64FST =
 
 
 ppc32FSTFile :: BS.ByteString
-ppc32FSTFile = undefined
+ppc32FSTFile = $(FE.embedFile "fst-files/ppc32.fst.txt")
 
 ppc64FSTFile :: BS.ByteString
-ppc64FSTFile = undefined
+ppc64FSTFile = $(FE.embedFile "fst-files/ppc64.fst.txt")

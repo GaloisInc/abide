@@ -209,22 +209,29 @@ instance CTypeInput PPC64 SystemV where
 -- stack and which do not.
 class IsStack reg where
   isStack :: reg -> Bool
+  incrementsStack :: reg -> Bool
 
 instance IsStack X64.X86_64Registers where
   isStack X64.StackInt   = True
   isStack X64.StackFloat = True
   isStack X64.StackMem   = True
   isStack _              = False
+  incrementsStack = isStack
+
 
 instance IsStack PPC64.PPC64Registers where
-  isStack _                = True
+  isStack PPC64.StackGP    = True
+  isStack PPC64.StackFloat = True
+  isStack PPC64.StackVec   = True
+  isStack _                = False
+  incrementsStack = const True
 
 instance IsStack PPC32.PPC32Registers where
   isStack PPC32.StackGP    = True
   isStack PPC32.StackFloat = True
   isStack PPC32.StackVec   = True
   isStack _                = False
-
+  incrementsStack = isStack
 
 -- This class is for dealing with architecture-specific fixed offsets.  All
 -- units are in bytes.

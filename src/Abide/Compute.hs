@@ -16,6 +16,7 @@ architecture/ABI pair.
 
 module Abide.Compute
   ( computeParam
+  , k64
   ) where
 
 import           Control.Lens ( (^.) )
@@ -30,6 +31,9 @@ import           Numeric.Natural
 import           Abide.CTypes
 import qualified Abide.Parse as P
 import           Abide.Types
+
+k64 :: Proxy (PPC64, SystemV)
+k64 = Proxy
 
 computeParam
   :: ( ParamABI arch abi
@@ -61,7 +65,7 @@ transduce :: forall arch abi i o.
 transduce fst inputs =
   let (reg, so) = go fst 1 0 inputs []
   in if isStack reg
-     then Right so
+     then Right (so + paramBaseOffset (Proxy @arch))
      else Left reg
     where
       go _ _ _ [] outs = head outs
@@ -89,7 +93,7 @@ traverseEdge fst n (i, size) currOffset =
   let edges     = fromMaybe (error "edge lookup failed in abide")
                             (M.lookup n (fst ^. nodeMap))
       (Just e)  = find ((== i) . (^. inSymbol)) edges
-      newOffset = if isStack (e ^. outSymbol)
+      newOffset = if incrementsStack (e ^. outSymbol)
                   then size + currOffset
                   else currOffset
-  in (e ^. dst, (e ^. outSymbol, newOffset + (paramBaseOffset (Proxy @arch))))
+  in (e ^. dst, (e ^. outSymbol, newOffset))
