@@ -16,7 +16,6 @@ architecture/ABI pair.
 
 module Abide.Compute
   ( computeParam
-  , k64
   ) where
 
 import           Control.Lens ( (^.) )
@@ -31,9 +30,6 @@ import           Numeric.Natural
 import           Abide.CTypes
 import qualified Abide.Parse as P
 import           Abide.Types
-
-k64 :: Proxy (PPC64, SystemV)
-k64 = Proxy
 
 computeParam
   :: ( ParamABI arch abi

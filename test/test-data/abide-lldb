@@ -1,0 +1,4 @@
+b foo
+run
+register read --all
+quit
