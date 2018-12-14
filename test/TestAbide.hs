@@ -3,8 +3,8 @@
 
 module Main where
 
-import           Data.List ( inits )
-import qualified Data.Map as M
+import           Data.List ( find, inits )
+import qualified Data.Map.Strict as M
 import           Data.Proxy ( Proxy(..) )
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -18,6 +18,7 @@ import           Abide.Types
 import           Abide.Types.Arch.X86_64
 
 import           TestParams
+import           TestParser
 import           TestTypes
 
 lldbScript :: FilePath
@@ -25,46 +26,57 @@ lldbScript = "test/test-data/abide-lldb"
 
 main :: IO ()
 main = hspec $
-  it "simple read" $ do
-    -- c <- cTrivial
-    -- a <- aTrivial
-    0 `shouldBe` 0  -- stub, tests aren't ready
+  it "Test a very simple program with no stack parameters" $ do
+    c <- cTrivial
+    a <- aTrivial
+    a `shouldBe` c  -- Do we need to sort somehow, or wrap for Eq instance?
+
+
+--------------------------------------------------------------------------------
+-- A trivial test to make sure the LLDB dumps are parsed correctly
+aTrivial :: IO [(CType, Either X86_64Registers StackOffset)]
+aTrivial = return $ abideParamList (map fst $ snd trivialParams)
 
 cTrivial :: IO [(CType, Either X86_64Registers StackOffset)]
-cTrivial = return $ abideParamList (map fst $ snd trivialParams)
+cTrivial = uncurry cParamList trivialParams
 
-aTrivial :: IO [(CType, Either X86_64Registers StackOffset)]
-aTrivial = (uncurry cParamList) trivialParams
+--------------------------------------------------------------------------------
+-- Utility stuff
 
+-- For a list of parameter types (assumed to be in order), we figure out where
+-- Abide thinks each one should be passed.
 abideParamList :: [CType] -> [(CType, Either X86_64Registers StackOffset)]
 abideParamList ps =
   zip ps $ map (computeParam (Proxy @(X86_64, SystemV))) (tail $ inits ps)
 
+-- For C, we take a file name (should be an executable conforming to a few
+-- simple rules, for now just X64) and a list of parameters which have been
+-- mapped to a magic, unique, known value.  We then use LLDB to dump the state
+-- of the registers when the function is called (those same magic values must
+-- be used in the source code) and locate which registers hold which magic
+-- values.
 cParamList :: FilePath -> [(CType, Word64)] -> IO [(CType, Either X86_64Registers StackOffset)]
 cParamList fp params = do
-  dump <- dumpDebugInfo fp
-  return []  -- stub
+  rvs <- dumpAndParse fp
+  return $ matchWithDump params rvs
 
-dumpDebugInfo :: FilePath -> IO RegVals
-dumpDebugInfo fp = do
-  raw <- lldbDump fp
-  parseRegs (map T.words $ T.lines raw)
+-- Get the LLDB dump and call the parser
+dumpAndParse :: FilePath -> IO RegVals
+dumpAndParse fp = return . parseRegs . T.lines =<< lldbDump fp
 
-parseRegs :: [[T.Text]] -> IO RegVals
-parseRegs tts = do
-  let relevantLines = filter (\xs -> not (null xs) && (isReg (head xs))) tts
-  print relevantLines
-  print (length relevantLines)
-  return M.empty
-
-isReg :: T.Text -> Bool
-isReg txt = elem txt regStrs
-  where
-    regStrs = [ "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "r8", "r9"
-              , "ymm0", "ymm1", "ymm2", "ymm3", "ymm4", "ymm5", "ymm6", "ymm7" ]
-
+-- Call LLDB.  This should probably be made configurable in some fashion.
 lldbDump :: FilePath -> IO T.Text
 lldbDump fp = do
   (ec, out, err) <- IO.readProcessWithExitCode "lldb" [fp, "-s", lldbScript] ""
   return $ T.pack out
 
+-- Given the known parameters/magic values, match them up with the values
+-- extracted from the dump.
+matchWithDump :: [(CType, Word64)] -> RegVals -> [(CType, Either X86_64Registers StackOffset)]
+matchWithDump cs rvs =
+  concatMap (`matchOne` rs) cs
+    where
+      rs = M.toList rvs
+      matchOne (ct, w) rvs = case find (\rv -> w == snd rv) rvs of
+        Just (reg, _) -> [(ct, Left reg)]
+        Nothing -> []

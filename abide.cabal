@@ -83,11 +83,14 @@ test-suite test-abide
   hs-source-dirs:      test
   main-is:             TestAbide.hs
   other-modules:       TestParams
+                     , TestParser
                      , TestTypes
   build-depends:       base <5
                      , abide
                      , containers
                      , hspec
+                     , megaparsec
+                     , parser-combinators
                      , text
                      , process
   default-language:    Haskell2010

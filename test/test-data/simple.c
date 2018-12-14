@@ -14,6 +14,6 @@ int _start()
   float f;
   memcpy(&f, &i, sizeof(f));
 
-  int x = fun(0x11, 0x22, 0x33, f);
-  return x;
+  int x = foo(0x11, 0x22, 0x33, f);
+  return 0;
 }
