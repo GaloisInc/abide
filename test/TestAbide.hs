@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Main where
@@ -19,12 +20,15 @@ import           Abide.Types.Arch.X86_64
 import           TestParams
 import           TestTypes
 
+lldbScript :: FilePath
+lldbScript = "test/test-data/abide-lldb"
+
 main :: IO ()
 main = hspec $
   it "simple read" $ do
-    c <- cTrivial
-    a <- aTrivial
-    0 `shouldBe` 0
+    -- c <- cTrivial
+    -- a <- aTrivial
+    0 `shouldBe` 0  -- stub, tests aren't ready
 
 cTrivial = return $ abideParamList (map fst $ snd trivialParams)
 
@@ -42,11 +46,20 @@ cParamList fp params = do
 dumpDebugInfo :: FilePath -> IO RegVals
 dumpDebugInfo fp = do
   raw <- lldbDump fp
-  -- print raw
-  return M.empty  -- stub
+  parseRegs (map T.words $ T.lines raw)
 
-lldbScript :: FilePath
-lldbScript = "test/test-data/abide-lldb"
+parseRegs :: [[T.Text]] -> IO RegVals
+parseRegs tts = do
+  let relevantLines = filter (\xs -> not (null xs) && (isReg (head xs))) tts
+  print relevantLines
+  print (length relevantLines)
+  return M.empty
+
+isReg :: T.Text -> Bool
+isReg txt = elem txt regStrs
+  where
+    regStrs = [ "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "r8", "r9"
+              , "ymm0", "ymm1", "ymm2", "ymm3", "ymm4", "ymm5", "ymm6", "ymm7" ]
 
 lldbDump :: FilePath -> IO T.Text
 lldbDump fp = do
