@@ -30,8 +30,10 @@ main = hspec $
     -- a <- aTrivial
     0 `shouldBe` 0  -- stub, tests aren't ready
 
+cTrivial :: IO [(CType, Either X86_64Registers StackOffset)]
 cTrivial = return $ abideParamList (map fst $ snd trivialParams)
 
+aTrivial :: IO [(CType, Either X86_64Registers StackOffset)]
 aTrivial = (uncurry cParamList) trivialParams
 
 abideParamList :: [CType] -> [(CType, Either X86_64Registers StackOffset)]
