@@ -10,5 +10,12 @@ import Abide.CTypes
 magicValues :: [Word64]
 magicValues = [0x11, 0x22 ..]
 
-trivialParams :: (FilePath, [(CType, Word64)])
-trivialParams = ("test/test-data/simple.x86.exe", [ (CInt32, 0x11), (CInt8, 0x22), (CInt64, 0x33), (CFloat, 0x44) ])
+trivialTest :: (FilePath, [(CType, Word64)])
+trivialTest = ( "test/test-data/simple.x86.exe"
+              , zip [CInt32, CInt8, CInt64, CFloat] magicValues
+              )
+
+easyStackTest :: (FilePath, [(CType, Word64)])
+easyStackTest = ( "test/test-data/stack.x86.exe"
+                , zip (replicate 10 CInt64) magicValues
+                )

@@ -21,19 +21,28 @@ type Parser = MP.Parsec T.Text T.Text
 
 -- The entry point for parsing LLDB dumps.  First we filter down to those
 -- lines which contain register values, and then we parse them all.
+parseDump :: [T.Text] -> (RegVals, StackVals)
+parseDump t = (parseRegs t, parseStack t)
+
 parseRegs :: [T.Text] -> RegVals
-parseRegs tts = foldr parseAndInsert M.empty (filter isReg tts)
+parseRegs t = foldr (parseAndInsert parseOneReg) M.empty (filter isReg t)
+
+parseStack :: [T.Text] -> StackVals
+parseStack t = foldr (parseAndInsert parseOneSt) M.empty (filter isStack t)
 
 -- Check whether a line is a register value mapping that we care about, as
 -- they all start with the name of the register.
 isReg :: T.Text -> Bool
 isReg txt = any (`T.isPrefixOf` (T.strip txt)) regStrs
 
+isStack :: T.Text -> Bool
+isStack txt = False
+
 -- Run the actual parser for a particular register and insert it into the
 -- mapping.
-parseAndInsert :: T.Text -> RegVals -> RegVals
-parseAndInsert line rvs = do
-  case MP.parse parseOneReg "" line of
+parseAndInsert :: Parser (k,v) -> T.Text -> M.Map k v -> M.Map k v
+parseAndInsert p line rvs = do
+  case MP.parse p "" line of
     Right (k, v) -> M.insert k v rvs
     Left _ -> M.empty
 
@@ -82,6 +91,9 @@ parseRegName =  symbol "rdi" $> RDI
             <|> symbol "ymm5" $> YMM5
             <|> symbol "ymm6" $> YMM6
             <|> symbol "ymm7" $> YMM7
+
+parseOneSt :: Parser (Word64, StackOffset)
+parseOneSt = undefined
 
 --------------------------------------------------------------------------------
 -- Some parsing helpers

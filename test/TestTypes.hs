@@ -12,3 +12,5 @@ newtype FnParameters reg = FnParameters { params :: [(CType, Either reg StackOff
   deriving (Eq, Show)
 
 type RegVals = M.Map X86_64Registers Word64
+
+type StackVals = M.Map Word64 StackOffset

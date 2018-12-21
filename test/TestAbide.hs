@@ -25,20 +25,22 @@ lldbScript :: FilePath
 lldbScript = "test/test-data/abide-lldb"
 
 main :: IO ()
-main = hspec $
+main = hspec $ do
   it "Test a very simple program with no stack parameters" $ do
-    c <- cTrivial
-    a <- aTrivial
+    (a, c) <- doTest trivialTest
     a `shouldBe` c  -- Do we need to sort somehow, or wrap for Eq instance?
 
+  it "Test some simple stack parameters" $ do
+    (a, c) <- doTest easyStackTest
+    a `shouldBe` c
 
---------------------------------------------------------------------------------
--- A trivial test to make sure the LLDB dumps are parsed correctly
-aTrivial :: IO [(CType, Either X86_64Registers StackOffset)]
-aTrivial = return $ abideParamList (map fst $ snd trivialParams)
+type TestResult = [(CType, Either X86_64Registers StackOffset)]
 
-cTrivial :: IO [(CType, Either X86_64Registers StackOffset)]
-cTrivial = uncurry cParamList trivialParams
+doTest :: (FilePath, [(CType, Word64)]) -> IO (TestResult, TestResult)
+doTest ps = do
+  let abideTest = abideParamList (map fst $ snd ps)
+  cTest <- uncurry cParamList ps
+  return (abideTest, cTest)
 
 --------------------------------------------------------------------------------
 -- Utility stuff
@@ -61,8 +63,8 @@ cParamList fp params = do
   return $ matchWithDump params rvs
 
 -- Get the LLDB dump and call the parser
-dumpAndParse :: FilePath -> IO RegVals
-dumpAndParse fp = return . parseRegs . T.lines =<< lldbDump fp
+dumpAndParse :: FilePath -> IO (RegVals, StackVals)
+dumpAndParse fp = return . parseDump . T.lines =<< lldbDump fp
 
 -- Call LLDB.  This should probably be made configurable in some fashion.
 lldbDump :: FilePath -> IO T.Text
@@ -72,11 +74,19 @@ lldbDump fp = do
 
 -- Given the known parameters/magic values, match them up with the values
 -- extracted from the dump.
-matchWithDump :: [(CType, Word64)] -> RegVals -> [(CType, Either X86_64Registers StackOffset)]
-matchWithDump cs rvs =
-  concatMap (`matchOne` rs) cs
+matchWithDump
+  :: [(CType, Word64)]
+  -> (RegVals, StackVals)
+  -> [(CType, Either X86_64Registers StackOffset)]
+matchWithDump cs vs =
+  concatMap matchReg cs ++ concatMap matchStack cs
     where
-      rs = M.toList rvs
-      matchOne (ct, w) rvs = case find (\rv -> w == snd rv) rvs of
+      rvs = M.toList $ fst vs
+      svs = M.toList $ snd vs
+      matchReg (ct, w) = case find (\v -> w == snd v) rvs of
         Just (reg, _) -> [(ct, Left reg)]
+        Nothing -> []
+
+      matchStack (ct, w) = case find (\v -> w == fst v) svs of
+        Just (_, so) -> [(ct, Right so)]
         Nothing -> []
