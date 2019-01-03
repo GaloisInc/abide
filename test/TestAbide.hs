@@ -35,6 +35,10 @@ main = hspec $ do
     (a, c) <- doTest intStackTest
     a `shouldBe` c
 
+  it "Test float parameters passed on the stack" $ do
+    (a, c) <- doTest floatStackTest
+    a `shouldBe` c
+
 type TestResult = [(CType, Either X86_64Registers StackOffset)]
 
 -- | Run a given test through abide and the LLDB dump parser, and return both
