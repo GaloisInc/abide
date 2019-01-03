@@ -4,18 +4,25 @@ import Data.Word
 
 import Abide.CTypes
 
--- This is a somewhat fragile hack.  The idea is that if we put a unique,
--- recognizable value in for each parameter, we can search through the
--- assembly/binary to figure out where it was passed.
+import TestTypes
+
+-- | This is a hack.  The idea is that if we put a unique, recognizable value
+-- in for each parameter, we can search through the assembly/binary to figure
+-- out where it was passed.  For now each is assumed to be a single byte
+-- value.  For example, if a 64 bit integer is passed on the stack, we want to
+-- look for the magic value in the first byte, followed by seven 0x00 bytes.
 magicValues :: [Word64]
 magicValues = [0x11, 0x22 ..]
 
-trivialTest :: (FilePath, [(CType, Word64)])
+-- | A simple test of a few different values in registers, including both ints
+-- and floats.
+trivialTest :: (FilePath, Params)
 trivialTest = ( "test/test-data/simple.x86.exe"
               , zip [CInt32, CInt8, CInt64, CFloat] magicValues
               )
 
-easyStackTest :: (FilePath, [(CType, Word64)])
-easyStackTest = ( "test/test-data/stack.x86.exe"
+-- | A test of just integer values on the stack
+intStackTest :: (FilePath, Params)
+intStackTest = ( "test/test-data/stack.x86.exe"
                 , zip (replicate 10 CInt64) magicValues
                 )
