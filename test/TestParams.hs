@@ -14,15 +14,18 @@ import TestTypes
 magicValues :: [Word64]
 magicValues = [0x11, 0x22 ..]
 
+exePath :: String -> String
+exePath name = "test/test-data/" ++ name ++ ".x86.exe"
+
 -- | A simple test of a few different values in registers, including both ints
 -- and floats.
-trivialTest :: (FilePath, Params)
-trivialTest = ( "test/test-data/simple.x86.exe"
-              , zip [CInt32, CInt8, CInt64, CFloat] magicValues
-              )
+regTest :: (FilePath, Params)
+regTest = ( exePath "reg"
+          , zip [CInt32, CInt8, CInt64, CFloat] magicValues
+          )
 
 -- | A test of just integer values on the stack
 intStackTest :: (FilePath, Params)
-intStackTest = ( "test/test-data/stack.x86.exe"
-                , zip (replicate 10 CInt64) magicValues
-                )
+intStackTest = ( exePath "int-stack"
+               , zip (replicate 10 CInt64) magicValues
+               )

@@ -28,7 +28,7 @@ lldbScript = "test/test-data/abide-lldb"
 main :: IO ()
 main = hspec $ do
   it "Test parameters that all fit in registers" $ do
-    (a, c) <- doTest trivialTest
+    (a, c) <- doTest regTest
     a `shouldBe` c  -- Do we need to sort somehow, or wrap for Eq instance?
 
   it "Test integer parameters passed on the stack" $ do

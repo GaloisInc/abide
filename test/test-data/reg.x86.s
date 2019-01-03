@@ -1,12 +1,12 @@
-	.file	"simple.c"
+	.file	"reg.c"
 	.text
 .Ltext0:
 	.globl	foo
 	.type	foo, @function
 foo:
 .LFB0:
-	.file 1 "simple.c"
-	.loc 1 5 1
+	.file 1 "reg.c"
+	.loc 1 5 0
 	.cfi_startproc
 	pushq	%rbp
 	.cfi_def_cfa_offset 16
@@ -18,9 +18,9 @@ foo:
 	movq	%rdx, -16(%rbp)
 	movss	%xmm0, -20(%rbp)
 	movb	%al, -8(%rbp)
-	.loc 1 6 10
+	.loc 1 6 0
 	movl	$0, %eax
-	.loc 1 7 1
+	.loc 1 7 0
 	popq	%rbp
 	.cfi_def_cfa 7, 8
 	ret
@@ -31,29 +31,31 @@ foo:
 	.type	_start, @function
 _start:
 .LFB1:
-	.loc 1 10 1
+	.loc 1 10 0
 	.cfi_startproc
 	pushq	%rbp
 	.cfi_def_cfa_offset 16
 	.cfi_offset 6, -16
 	movq	%rsp, %rbp
 	.cfi_def_cfa_register 6
-	subq	$16, %rsp
-	.loc 1 13 11
+	subq	$24, %rsp
+	.loc 1 13 0
 	movl	$68, -8(%rbp)
-	.loc 1 15 3
+	.loc 1 15 0
 	movl	-8(%rbp), %eax
 	movl	%eax, -12(%rbp)
-	.loc 1 17 11
-	movss	-12(%rbp), %xmm0
+	.loc 1 17 0
+	movl	-12(%rbp), %eax
+	movl	%eax, -20(%rbp)
+	movss	-20(%rbp), %xmm0
 	movl	$51, %edx
 	movl	$34, %esi
 	movl	$17, %edi
 	call	foo
 	movl	%eax, -4(%rbp)
-	.loc 1 18 10
+	.loc 1 18 0
 	movl	$0, %eax
-	.loc 1 19 1
+	.loc 1 19 0
 	leave
 	.cfi_def_cfa 7, 8
 	ret
@@ -65,7 +67,7 @@ _start:
 	.file 3 "/usr/include/x86_64-linux-gnu/bits/stdint-intn.h"
 	.section	.debug_info,"",@progbits
 .Ldebug_info0:
-	.long	0x159
+	.long	0x14a
 	.value	0x4
 	.long	.Ldebug_abbrev0
 	.byte	0x8
@@ -97,8 +99,7 @@ _start:
 	.long	.LASF6
 	.byte	0x2
 	.byte	0x24
-	.byte	0x15
-	.long	0x55
+	.long	0x54
 	.uleb128 0x2
 	.byte	0x1
 	.byte	0x6
@@ -111,8 +112,7 @@ _start:
 	.long	.LASF7
 	.byte	0x2
 	.byte	0x28
-	.byte	0x14
-	.long	0x6f
+	.long	0x6d
 	.uleb128 0x4
 	.byte	0x4
 	.byte	0x5
@@ -121,8 +121,7 @@ _start:
 	.long	.LASF8
 	.byte	0x2
 	.byte	0x2b
-	.byte	0x19
-	.long	0x82
+	.long	0x7f
 	.uleb128 0x2
 	.byte	0x8
 	.byte	0x5
@@ -135,37 +134,32 @@ _start:
 	.long	.LASF11
 	.byte	0x3
 	.byte	0x18
-	.byte	0x12
 	.long	0x49
 	.uleb128 0x3
 	.long	.LASF12
 	.byte	0x3
 	.byte	0x1a
-	.byte	0x13
-	.long	0x63
+	.long	0x62
 	.uleb128 0x3
 	.long	.LASF13
 	.byte	0x3
 	.byte	0x1b
-	.byte	0x13
-	.long	0x76
+	.long	0x74
 	.uleb128 0x5
 	.long	.LASF15
 	.byte	0x1
 	.byte	0x9
-	.byte	0x5
-	.long	0x6f
+	.long	0x6d
 	.quad	.LFB1
 	.quad	.LFE1-.LFB1
 	.uleb128 0x1
 	.byte	0x9c
-	.long	0xfe
+	.long	0xf4
 	.uleb128 0x6
 	.string	"i"
 	.byte	0x1
 	.byte	0xd
-	.byte	0xb
-	.long	0x9c
+	.long	0x98
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -173,8 +167,7 @@ _start:
 	.string	"f"
 	.byte	0x1
 	.byte	0xe
-	.byte	0x9
-	.long	0xfe
+	.long	0xf4
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -28
@@ -182,8 +175,7 @@ _start:
 	.string	"x"
 	.byte	0x1
 	.byte	0x11
-	.byte	0x7
-	.long	0x6f
+	.long	0x6d
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -20
@@ -196,8 +188,7 @@ _start:
 	.string	"foo"
 	.byte	0x1
 	.byte	0x4
-	.byte	0x5
-	.long	0x6f
+	.long	0x6d
 	.quad	.LFB0
 	.quad	.LFE0-.LFB0
 	.uleb128 0x1
@@ -206,8 +197,7 @@ _start:
 	.string	"p1"
 	.byte	0x1
 	.byte	0x4
-	.byte	0x11
-	.long	0x9c
+	.long	0x98
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -20
@@ -215,8 +205,7 @@ _start:
 	.string	"p2"
 	.byte	0x1
 	.byte	0x4
-	.byte	0x1c
-	.long	0x90
+	.long	0x8d
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -24
@@ -224,8 +213,7 @@ _start:
 	.string	"p3"
 	.byte	0x1
 	.byte	0x4
-	.byte	0x28
-	.long	0xa8
+	.long	0xa3
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -32
@@ -233,8 +221,7 @@ _start:
 	.string	"p4"
 	.byte	0x1
 	.byte	0x4
-	.byte	0x32
-	.long	0xfe
+	.long	0xf4
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -36
@@ -281,8 +268,6 @@ _start:
 	.uleb128 0xb
 	.uleb128 0x3b
 	.uleb128 0xb
-	.uleb128 0x39
-	.uleb128 0xb
 	.uleb128 0x49
 	.uleb128 0x13
 	.byte	0
@@ -309,8 +294,6 @@ _start:
 	.uleb128 0xb
 	.uleb128 0x3b
 	.uleb128 0xb
-	.uleb128 0x39
-	.uleb128 0xb
 	.uleb128 0x49
 	.uleb128 0x13
 	.uleb128 0x11
@@ -334,8 +317,6 @@ _start:
 	.uleb128 0xb
 	.uleb128 0x3b
 	.uleb128 0xb
-	.uleb128 0x39
-	.uleb128 0xb
 	.uleb128 0x49
 	.uleb128 0x13
 	.uleb128 0x2
@@ -352,8 +333,6 @@ _start:
 	.uleb128 0x3a
 	.uleb128 0xb
 	.uleb128 0x3b
-	.uleb128 0xb
-	.uleb128 0x39
 	.uleb128 0xb
 	.uleb128 0x27
 	.uleb128 0x19
@@ -377,8 +356,6 @@ _start:
 	.uleb128 0x3a
 	.uleb128 0xb
 	.uleb128 0x3b
-	.uleb128 0xb
-	.uleb128 0x39
 	.uleb128 0xb
 	.uleb128 0x49
 	.uleb128 0x13
@@ -404,12 +381,14 @@ _start:
 	.section	.debug_str,"MS",@progbits,1
 .LASF1:
 	.string	"short unsigned int"
+.LASF17:
+	.string	"reg.c"
 .LASF2:
 	.string	"unsigned int"
 .LASF18:
 	.string	"/home/karl/work/abide/test/test-data"
-.LASF14:
-	.string	"float"
+.LASF16:
+	.string	"GNU C11 7.3.0 -mtune=generic -march=x86-64 -g -O0 -fno-stack-protector"
 .LASF0:
 	.string	"unsigned char"
 .LASF10:
@@ -418,8 +397,6 @@ _start:
 	.string	"int8_t"
 .LASF9:
 	.string	"long int"
-.LASF17:
-	.string	"simple.c"
 .LASF8:
 	.string	"__int64_t"
 .LASF3:
@@ -434,11 +411,11 @@ _start:
 	.string	"_start"
 .LASF7:
 	.string	"__int32_t"
-.LASF16:
-	.string	"GNU C17 8.2.0 -mtune=generic -march=x86-64 -g -O0 -fno-stack-protector"
+.LASF14:
+	.string	"float"
 .LASF5:
 	.string	"short int"
 .LASF12:
 	.string	"int32_t"
-	.ident	"GCC: (Ubuntu 8.2.0-7ubuntu1) 8.2.0"
+	.ident	"GCC: (Ubuntu 7.3.0-27ubuntu1~18.04) 7.3.0"
 	.section	.note.GNU-stack,"",@progbits

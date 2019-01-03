@@ -1,11 +1,11 @@
-	.file	"stack.c"
+	.file	"int-stack.c"
 	.text
 .Ltext0:
 	.globl	foo
 	.type	foo, @function
 foo:
 .LFB0:
-	.file 1 "stack.c"
+	.file 1 "int-stack.c"
 	.loc 1 5 0
 	.cfi_startproc
 	pushq	%rbp
@@ -388,16 +388,14 @@ _start:
 	.section	.debug_line,"",@progbits
 .Ldebug_line0:
 	.section	.debug_str,"MS",@progbits,1
-.LASF12:
-	.string	"stack.c"
+.LASF1:
+	.string	"short unsigned int"
 .LASF2:
 	.string	"unsigned int"
 .LASF13:
 	.string	"/home/karl/work/abide/test/test-data"
 .LASF11:
 	.string	"GNU C11 7.3.0 -mtune=generic -march=x86-64 -g -O0 -fno-stack-protector"
-.LASF1:
-	.string	"short unsigned int"
 .LASF0:
 	.string	"unsigned char"
 .LASF7:
@@ -414,6 +412,8 @@ _start:
 	.string	"signed char"
 .LASF10:
 	.string	"_start"
+.LASF12:
+	.string	"int-stack.c"
 .LASF5:
 	.string	"short int"
 	.ident	"GCC: (Ubuntu 7.3.0-27ubuntu1~18.04) 7.3.0"
