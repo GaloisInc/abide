@@ -59,12 +59,12 @@ abideParamList ps =
 -- values.
 cParamList :: FilePath -> [(CType, Word64)] -> IO [(CType, Either X86_64Registers StackOffset)]
 cParamList fp params = do
-  rvs <- dumpAndParse fp
+  rvs <- dumpAndParse fp params
   return $ matchWithDump params rvs
 
 -- Get the LLDB dump and call the parser
-dumpAndParse :: FilePath -> IO (RegVals, StackVals)
-dumpAndParse fp = return . parseDump . T.lines =<< lldbDump fp
+dumpAndParse :: FilePath -> [(CType, Word64)] -> IO (RegVals, StackVals)
+dumpAndParse fp params = return . (`parseDump` params) . T.lines =<< lldbDump fp
 
 -- Call LLDB.  This should probably be made configurable in some fashion.
 lldbDump :: FilePath -> IO T.Text

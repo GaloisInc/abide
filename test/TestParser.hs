@@ -2,16 +2,18 @@
 
 module TestParser where
 
-import           Control.Monad.Combinators ( (<|>) )
+import           Control.Monad.Combinators ( (<|>), count, skipMany )
 import           Data.Foldable ( foldrM )
 import           Data.Functor ( ($>) )
 import qualified Data.Map.Strict as M
+import           Data.Maybe ( catMaybes )
 import qualified Data.Text as T
 import           Data.Word
 import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Char as MPC
 import qualified Text.Megaparsec.Char.Lexer as MPL
 
+import           Abide.CTypes
 import           Abide.Types
 import           Abide.Types.Arch.X86_64
 
@@ -21,30 +23,48 @@ type Parser = MP.Parsec T.Text T.Text
 
 -- The entry point for parsing LLDB dumps.  First we filter down to those
 -- lines which contain register values, and then we parse them all.
-parseDump :: [T.Text] -> (RegVals, StackVals)
-parseDump t = (parseRegs t, parseStack t)
+parseDump :: [T.Text] -> [(CType, Word64)] -> (RegVals, StackVals)
+parseDump t params = (parseRegs t, parseStack t params)
 
 parseRegs :: [T.Text] -> RegVals
-parseRegs t = foldr (parseAndInsert parseOneReg) M.empty (filter isReg t)
+parseRegs t = foldr (parseAndInsert parseOneReg) M.empty (filter isRegLine t)
 
-parseStack :: [T.Text] -> StackVals
-parseStack t = foldr (parseAndInsert parseOneSt) M.empty (filter isStack t)
+parseStack :: [T.Text] -> [(CType, Word64)] -> StackVals
+parseStack t params =
+  foldr (parseListAndInsert (parseOneStackLine rspAddr params))
+        M.empty
+        (filter isStackLine t)
+    where
+      rspAddr = parseRSPAddr (head $ filter isRSPLine t)
+      isRSPLine txt = T.isPrefixOf "rsp" (T.strip txt)
 
 -- Check whether a line is a register value mapping that we care about, as
 -- they all start with the name of the register.
-isReg :: T.Text -> Bool
-isReg txt = any (`T.isPrefixOf` (T.strip txt)) regStrs
+isRegLine :: T.Text -> Bool
+isRegLine txt = any (`T.isPrefixOf` (T.strip txt)) regStrs
 
-isStack :: T.Text -> Bool
-isStack txt = False
+isStackLine :: T.Text -> Bool
+isStackLine txt = T.isPrefixOf "0x" (T.strip txt)
+
+parseRSPAddr :: T.Text -> Word64
+parseRSPAddr txt =
+  case MP.parse parseOneReg "" txt of
+    Right (RSP, w) -> w
+    Left _ -> error "failed parsing RSP, which shouldn't happen"
+
+parseAndInsert :: Ord k => Parser (k, v) -> T.Text -> M.Map k v -> M.Map k v
+parseAndInsert p line map =
+  case MP.parse p "" line of
+    Right (k, v) -> M.insert k v map
+    Left _ -> map
 
 -- Run the actual parser for a particular register and insert it into the
 -- mapping.
-parseAndInsert :: Parser (k,v) -> T.Text -> M.Map k v -> M.Map k v
-parseAndInsert p line rvs = do
+parseListAndInsert :: Ord k => Parser [(k, v)] -> T.Text -> M.Map k v -> M.Map k v
+parseListAndInsert p line map =
   case MP.parse p "" line of
-    Right (k, v) -> M.insert k v rvs
-    Left _ -> M.empty
+    Right kvs -> foldr (\(k,v) m -> M.insert k v m) map kvs
+    Left _ -> map
 
 -- The parser for a register value mapping.  LLDB uses a different format for
 -- the YMM registers than for the general purpose ones, so we need to handle
@@ -92,8 +112,28 @@ parseRegName =  symbol "rdi" $> RDI
             <|> symbol "ymm6" $> YMM6
             <|> symbol "ymm7" $> YMM7
 
-parseOneSt :: Parser (Word64, StackOffset)
-parseOneSt = undefined
+-- The stack dump looks like "0x7fffffffdd58: 11 00 00 ................"
+-- There are 16 hex bytes per line followed by 16 dots/characters for ascii
+parseOneStackLine :: Word64 -> [(CType, Word64)] -> Parser [(Word64, StackOffset)]
+parseOneStackLine rspAddr params = do
+  startAddr <- parseOneHex
+  symbol ":"
+  bytes <- count 16 MPL.hexadecimal
+  -- skipMany
+  return $ matchBytesWithParams (rspAddr - startAddr) params bytes
+
+matchBytesWithParams :: Word64 -> [(CType, Word64)] -> [Word64] -> [(Word64, StackOffset)]
+matchBytesWithParams addr params bytes = catMaybes $ map (findOneParam addr bytes) params
+
+findOneParam :: Word64 -> [Word64] -> (CType, Word64) -> Maybe (Word64, StackOffset)
+findOneParam _ [] _ = Nothing
+findOneParam addr (b:bs) (ct, val) =
+  let trailingZs = fromIntegral . pred $ ctypeByteSize ct
+  in if b == val && length bs >= trailingZs && all (== 0) (take trailingZs bs)
+     then Just (val, undefined)
+     else findOneParam addr bs (ct, val)
+
+
 
 --------------------------------------------------------------------------------
 -- Some parsing helpers
