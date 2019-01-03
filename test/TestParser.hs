@@ -50,7 +50,7 @@ parseRSPAddr :: T.Text -> Word64
 parseRSPAddr txt =
   case MP.parse parseOneReg "" txt of
     Right (RSP, w) -> w
-    Left _ -> error "failed parsing RSP, which shouldn't happen"
+    Left e -> error (show e)
 
 parseAndInsert :: Ord k => Parser (k, v) -> T.Text -> M.Map k v -> M.Map k v
 parseAndInsert p line map =
@@ -64,7 +64,7 @@ parseListAndInsert :: Ord k => Parser [(k, v)] -> T.Text -> M.Map k v -> M.Map k
 parseListAndInsert p line map =
   case MP.parse p "" line of
     Right kvs -> foldr (\(k,v) m -> M.insert k v m) map kvs
-    Left _ -> map
+    Left e -> error (show e)
 
 -- The parser for a register value mapping.  LLDB uses a different format for
 -- the YMM registers than for the general purpose ones, so we need to handle
@@ -76,21 +76,29 @@ parseOneReg = do
   symbol "="
   if isFPReg regName
     then parseManyBytes >>= \w -> return (regName, w)
-    else parseOneHex >>= \w -> return (regName, w)
+    else parseOneHexSymbol >>= \w -> return (regName, w)
 
 -- The YMM registers look like: "YMM0 = {0x00 0x00 .. }"
 parseManyBytes :: Parser Word64
 parseManyBytes = do
   symbol "{"
-  byte <- parseOneHex
-  MP.many parseOneHex
+  byte <- parseOneHexSymbol
+  MP.many parseOneHexSymbol
   symbol "}"
   return byte
 
 -- Parse a single hex value and trailing space.
-parseOneHex :: Parser Word64
-parseOneHex = do
+parseOneHexSymbol :: Parser Word64
+parseOneHexSymbol = parseOneHexPartial >>= \x -> MPC.space >> return x
+
+parseOneHexPartial :: Parser Word64
+parseOneHexPartial = do
   MPC.char '0' >> MPC.char' 'x'
+  x <- MPL.hexadecimal
+  return x
+
+parseOneRawHexSymbol :: Parser Word64
+parseOneRawHexSymbol = do
   x <- MPL.hexadecimal
   MPC.space
   return x
@@ -111,14 +119,15 @@ parseRegName =  symbol "rdi" $> RDI
             <|> symbol "ymm5" $> YMM5
             <|> symbol "ymm6" $> YMM6
             <|> symbol "ymm7" $> YMM7
+            <|> symbol "rsp" $> RSP
 
 -- The stack dump looks like "0x7fffffffdd58: 11 00 00 ................"
 -- There are 16 hex bytes per line followed by 16 dots/characters for ascii
 parseOneStackLine :: Word64 -> [(CType, Word64)] -> Parser [(Word64, StackOffset)]
 parseOneStackLine rspAddr params = do
-  startAddr <- parseOneHex
+  startAddr <- parseOneHexPartial
   symbol ":"
-  bytes <- count 16 MPL.hexadecimal
+  bytes <- count 16 parseOneRawHexSymbol
   -- skipMany
   return $ matchBytesWithParams (rspAddr - startAddr) params bytes
 
@@ -126,12 +135,15 @@ matchBytesWithParams :: Word64 -> [(CType, Word64)] -> [Word64] -> [(Word64, Sta
 matchBytesWithParams addr params bytes = catMaybes $ map (findOneParam addr bytes) params
 
 findOneParam :: Word64 -> [Word64] -> (CType, Word64) -> Maybe (Word64, StackOffset)
-findOneParam _ [] _ = Nothing
-findOneParam addr (b:bs) (ct, val) =
-  let trailingZs = fromIntegral . pred $ ctypeByteSize ct
-  in if b == val && length bs >= trailingZs && all (== 0) (take trailingZs bs)
-     then Just (val, undefined)
-     else findOneParam addr bs (ct, val)
+findOneParam = findOneParam' 0
+  where
+    -- findOneParam' :: Int -> Word64 -> [Word64] -> (CType, Word64) -> Maybe (Word64, StackOffset)
+    findOneParam' _ _ [] _ = Nothing
+    findOneParam' n offset (b:bs) (ct, val) =
+      let trailingZs = fromIntegral . pred $ ctypeByteSize ct
+      in if b == val && length bs >= trailingZs && all (== 0) (take trailingZs bs)
+         then Just (val, fromIntegral offset - n)
+         else findOneParam' (n + 1) offset bs (ct, val)
 
 
 
@@ -142,3 +154,19 @@ symbol = MPL.symbol MPC.space
 
 regStrs = [ "rdi ", "rsi ", "rdx ", "rcx ", "r8 ", "r9 "
           , "ymm0 ", "ymm1 ", "ymm2 ", "ymm3 ", "ymm4 ", "ymm5 ", "ymm6 ", "ymm7 " ]
+
+l1 :: T.Text
+l1 = "0x7fffffffde58: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................"
+l2 :: T.Text
+l2 = "0x7fffffffde68: 66 00 00 00 00 00 00 00 55 00 00 00 00 00 00 00  f.......U......."
+l3 :: T.Text
+l3 = "0x7fffffffde78: 44 00 00 00 00 00 00 00 33 00 00 00 00 00 00 00  D.......3......."
+l4 :: T.Text
+l4 = "0x7fffffffde88: 22 00 00 00 00 00 00 00 11 00 00 00 00 00 00 00  \"..............."
+
+rsptxt :: T.Text
+rsptxt = "       rsp = 0x00007fffffffde98   "
+
+rsp = 0x00007fffffffde98
+
+testl4 est = parseListAndInsert (parseOneStackLine rsp (snd est)) l4 M.empty
