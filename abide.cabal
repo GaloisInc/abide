@@ -82,15 +82,17 @@ test-suite test-abide
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             TestAbide.hs
-  other-modules:       TestParams
+  other-modules:       TestGenerator
+                     , TestParams
                      , TestParser
                      , TestTypes
   build-depends:       base <5
                      , abide
-                     , containers
-                     , hspec
-                     , megaparsec
-                     , parser-combinators
-                     , text
-                     , process
+                     , containers ==0.5.*
+                     , hspec ==2.*
+                     , language-c-quote >=0.12 && <1.0
+                     , megaparsec ==7.*
+                     , parser-combinators ==1.*
+                     , text ==1.*
+                     , process ==1.*
   default-language:    Haskell2010
