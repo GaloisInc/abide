@@ -248,7 +248,7 @@ instance ArchParamBaseOffset PPC64 where
   stackAlignment _ = 8
 
 instance ArchParamBaseOffset X86_64 where
-  paramBaseOffset _ = 0 -- 16? (saved RBP and return)
+  paramBaseOffset _ = 8 -- CAREFUL
   stackAlignment _ = 8
 
 --------------------------------------------------------------------------------

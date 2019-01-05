@@ -6,13 +6,12 @@ CCX86=gcc
 ppcexe = $(patsubst %.c,%.ppc.exe,$(wildcard *.c))
 x86exe = $(patsubst %.c,%.x86.exe,$(wildcard *.c))
 
-CFLAGS = -O0 -fno-stack-protector -g
+CFLAGS = -O0 -static
 
-all: $(x86exe)
-# all: $(ppcexe) $(x86exe)
+all: $(ppcexe) $(x86exe)
 
 $(ppcexe): %.ppc.exe: %.ppc.s
-	$(CCPPC) $(CFLAGS) -nostdlib $< -o $@
+	$(CCPPC) $(CFLAGS) $< -o $@
 
 %.ppc.s: %.c
 	$(CCPPC) $(CFLAGS) -S -c $< -o $@
@@ -20,10 +19,10 @@ $(ppcexe): %.ppc.exe: %.ppc.s
 # NOTE: the PIE builds cannot be verified right now.  It looks like something in
 # macaw is choking and not discovering the expected code for PIE binaries
 $(x86exe): %.x86.exe: %.x86.s
-	$(CCX86) $(CFLAGS) -no-pie -nostdlib $< -o $@
+	$(CCX86) $(CFLAGS) $< -o $@
 
 %.x86.s: %.c
-	$(CCX86) $(CFLAGS) -no-pie -S -c $< -o $@
+	$(CCX86) $(CFLAGS) -S -c $< -o $@
 
 .PRECIOUS: %.s
 

@@ -24,6 +24,6 @@ type StackVals = M.Map Word64 StackOffset
 -- flag.
 data FFlag = Found | NotFound deriving (Eq, Show)
 
-type Params = [(CType, Word64)]
+type FnParamSpec = [(CType, Word64)]
 
 type FlaggedParams = [(CType, Word64, FFlag)]

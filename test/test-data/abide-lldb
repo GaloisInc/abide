@@ -1,5 +1,5 @@
 b foo
 run
 register read --all
-x $rsp $rsp+1024
+x $rbp-512 $rbp+512
 quit

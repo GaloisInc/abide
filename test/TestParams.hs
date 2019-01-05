@@ -23,12 +23,12 @@ exePath name = "test/test-data/" ++ name ++ ".x86.exe"
 
 -- | A simple test of a few different values in registers, including both ints
 -- and floats.
-regTest :: (FilePath, Params)
+regTest :: (FilePath, FnParamSpec)
 regTest = ( exePath "reg", zip [CInt32, CInt8, CInt64, CFloat] magicValues )
 
 -- | A test of just integer values on the stack
-intStackTest :: (FilePath, Params)
+intStackTest :: (FilePath, FnParamSpec)
 intStackTest = ( exePath "int-stack", take 10 int64s )
 
-floatStackTest :: (FilePath, Params)
+floatStackTest :: (FilePath, FnParamSpec)
 floatStackTest = ( exePath "float-stack", take 12 floats )

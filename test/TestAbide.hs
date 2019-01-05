@@ -64,13 +64,13 @@ abideParamList ps =
 -- use LLDB to dump the state of the registers when the function is called
 -- (those same magic values must be used in the source code) and locate which
 -- registers hold which magic values.
-cParamList :: FilePath -> Params -> IO [(CType, Either X86_64Registers StackOffset)]
+cParamList :: FilePath -> FnParamSpec -> IO [(CType, Either X86_64Registers StackOffset)]
 cParamList fp params = do
   rvs <- dumpAndParse fp params
   return $ matchWithDump params rvs
 
 -- | Get the LLDB dump and call the parser
-dumpAndParse :: FilePath -> Params -> IO (RegVals, StackVals)
+dumpAndParse :: FilePath -> FnParamSpec -> IO (RegVals, StackVals)
 dumpAndParse fp params = return . (`parseDump` params) . T.lines =<< lldbDump fp
 
 -- | Call out to LLDB
@@ -81,7 +81,7 @@ lldbDump fp = do
 
 -- | Given the known parameters/magic values, match them up with the values
 -- extracted from the dump.
-matchWithDump :: Params -> (RegVals, StackVals) -> [(CType, Either X86_64Registers StackOffset)]
+matchWithDump :: FnParamSpec -> (RegVals, StackVals) -> [(CType, Either X86_64Registers StackOffset)]
 matchWithDump cs vs = concatMap matchReg cs ++ concatMap matchStack cs
     where
       rvs = M.toList $ fst vs

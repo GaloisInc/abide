@@ -9,6 +9,7 @@ import qualified Data.Map.Strict as M
 import           Data.Maybe ( catMaybes )
 import qualified Data.Text as T
 import           Data.Word
+import           Numeric.Natural
 import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Char as MPC
 import qualified Text.Megaparsec.Char.Lexer as MPL
@@ -24,7 +25,7 @@ type Parser = MP.Parsec T.Text T.Text
 
 -- | The entry point for parsing LLDB dumps.  First we filter down to those
 -- lines which contain register values, and then we parse them all.
-parseDump :: [T.Text] -> Params -> (RegVals, StackVals)
+parseDump :: [T.Text] -> FnParamSpec -> (RegVals, StackVals)
 parseDump t params =
   let rvs = parseRegs t
       fParams = flagParams rvs params
@@ -32,7 +33,7 @@ parseDump t params =
 
 -- | Assign flags to the parameter list indicating which were found in
 -- registers.
-flagParams :: RegVals -> Params -> FlaggedParams
+flagParams :: RegVals -> FnParamSpec -> FlaggedParams
 flagParams rvs ps = map (rvElem rvs) ps
   where
     rvElem :: RegVals -> (CType, Word64) -> (CType, Word64, FFlag)
@@ -54,11 +55,11 @@ parseRegs t = foldr (parseAndInsert parseOneReg) M.empty (filter isRegLine t)
 isRegLine :: T.Text -> Bool
 isRegLine txt = any (`T.isPrefixOf` (T.strip txt)) regStrs
 
--- | While parameters are not ever in RSP, we still need to find it when we
+-- | While parameters are not ever in RBP, we still need to find it when we
 -- are computing offsets into the stack.
-parseRSPAddr :: T.Text -> Word64
-parseRSPAddr txt = case MP.parse parseOneReg "" txt of
-  Right (RSP, w) -> w
+parseRBPAddr :: T.Text -> Word64
+parseRBPAddr txt = case MP.parse parseOneReg "" txt of
+  Right (RBP, w) -> w
   Left e -> error (show e)
 
 -- | Run a parser producing a single key/value pair and insert it into a map.
@@ -119,7 +120,7 @@ parseRegName =  symbol "rdi" $> RDI
             <|> symbol "ymm5" $> YMM5
             <|> symbol "ymm6" $> YMM6
             <|> symbol "ymm7" $> YMM7
-            <|> symbol "rsp" $> RSP
+            <|> symbol "rbp" $> RBP
 
 --------------------------------------------------------------------------------
 -- Stack parsing stuff.  This is a bit more complicated than the register
@@ -131,10 +132,10 @@ parseRegName =  symbol "rdi" $> RDI
 -- order to compute the proper offset.
 parseStack :: [T.Text] -> FlaggedParams -> StackVals
 parseStack t params =
-  foldr (parseListAndInsert (parseOneStackLine rspAddr params)) M.empty (filter isStackLine t)
+  foldr (parseListAndInsert (parseOneStackLine rbpAddr params)) M.empty (filter isStackLine t)
     where
-      rspAddr = parseRSPAddr (head $ filter isRSPLine t)
-      isRSPLine txt = T.isPrefixOf "rsp" (T.strip txt)
+      rbpAddr = fromIntegral $ parseRBPAddr (head $ filter isRBPLine t)
+      isRBPLine txt = T.isPrefixOf "rbp" (T.strip txt)
 
 -- | Run a parser producing a list of values.  This is only relevant to the
 -- stack for now, since a single line from the dump can contain multiple
@@ -153,40 +154,43 @@ isStackLine txt = T.isPrefixOf "0x" (T.strip txt)
 -- | The stack dump looks like "0x7fffffffdd58: 11 00 00 ................"
 -- There are 16 hex bytes per line followed by 16 dots/characters for ascii
 parseOneStackLine
-  :: Word64
-  -- ^ The value of the RSP register
+  :: Natural
+  -- ^ The value of the RBP register
   -> FlaggedParams
   -> Parser [(Word64, StackOffset)]
-parseOneStackLine rspAddr params = do
+parseOneStackLine rbpAddr params = do
   startAddr <- parseHex
   symbol ":"
   bytes <- count 16 parseHexNoPref
-  return $ matchBytesWithParams (startAddr - rspAddr - 8) params bytes
+  return $ matchBytesWithParams rbpAddr (fromIntegral startAddr) params (map fromIntegral bytes)
 
 matchBytesWithParams
-  :: Word64
-  -- ^ The base offset for a single line of the dump.
+  :: Natural
+  -- ^ The value of the RBP register
+  -> Natural
+  -- ^ The address of the bytes we are inspecting
   -> FlaggedParams
-  -> [Word64]
+  -> [Word8]
   -- ^ The 16 bytes for a single line of the dump
   -> [(Word64, StackOffset)]
-matchBytesWithParams offset params bytes = catMaybes $ map (findOneParam offset bytes) params
+matchBytesWithParams rbp addr params bytes =
+  catMaybes $ map (findOneParam (addr - rbp) bytes) params
 
 -- | Try to find a particular parameter in the bytes from a single line of the
 -- dump.  The parameters shouldn't cross the line boundary.
 findOneParam
-  :: Word64
+  :: Natural
   -- ^ The base offset for the line of the dump we are examining.  As we
   -- traverse it, we will increment this.
-  -> [Word64]
+  -> [Word8]
   -- ^ The bytes to search
   -> (CType, Word64, FFlag)
   -> Maybe (Word64, StackOffset)
 findOneParam offset (b:bs) (ct, val, NotFound) =
   let trailingZs = fromIntegral . pred $ ctypeByteSize ct
-  in if b == val && length bs >= trailingZs && all (== 0) (take trailingZs bs)
-     then Just (val, fromIntegral offset)
-     else findOneParam (succ offset) bs (ct, val, NotFound)
+  in if fromIntegral b == val && length bs >= trailingZs && all (== 0) (take trailingZs bs)
+     then Just (val, offset)
+     else findOneParam (offset + 1) bs (ct, val, NotFound)
 findOneParam _ _ _ = Nothing
 
 --------------------------------------------------------------------------------

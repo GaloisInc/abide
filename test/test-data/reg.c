@@ -6,7 +6,7 @@ int foo(int32_t p1, int8_t p2, int64_t p3, float p4)
   return 0;
 }
 
-int _start()
+int main()
 {
   // This is necessary to set the actual bits for a float instead of hex being
   // interpreted as a number, and then being converted to IEEE754
