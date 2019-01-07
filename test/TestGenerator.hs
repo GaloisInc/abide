@@ -2,12 +2,15 @@
 
 module TestGenerator where
 
-import Language.C.Quote as C
-import Language.C.Quote.C as C
+import           Language.C.Pretty ()
+import qualified Language.C.Quote as C
+import qualified Language.C.Quote.C as C
+import qualified Text.PrettyPrint.Mainland as PP
+import qualified Text.PrettyPrint.Mainland.Class as PP
 
-import Abide.CTypes
+import           Abide.CTypes
 
-import TestTypes
+import           TestTypes
 
 data Test = Test
   { cGenerator :: CGenerator
@@ -30,7 +33,12 @@ calledFnName = "foo"
 -- generating functions with parameter lists.
 paramNames = map (\n -> 'p' : show n) [1..]
 
+-- | In order to store particular bytes in a floating point value, we need to
+-- memcpy them.  This integer variable name is used throughout a test program
+-- to temporarily store the value we want to copy.
+memCpyInt = "i"
 
+-- | Generate the LangC code for a particular function specification.
 mkCGenerator :: FnParamSpec -> [C.Definition]
 mkCGenerator ps =
   mkIncludes ++ [mkCalledFn ps calledFnName, mkMainFn ps calledFnName]
@@ -69,17 +77,36 @@ convertCType CInt64  = [C.cty|typename int64_t|]
 convertCType CFloat  = [C.cty|float|]
 convertCType CDouble = [C.cty|double|]
 
--- TODO: Generate a declaration for each parameter, setting it to a unique
--- value.
-
 -- | Generate the main function, which will generally just set up the
 -- parameters to call one function and return.
 mkMainFn :: FnParamSpec -> String -> C.Definition
 mkMainFn ps nm =
-  let fnCall = [C.citem|$item:(mkFnCall ps nm)|]
-      ret =    [C.citem|return 0;|]
-      main = [C.cfun|int main() { $items:([fnCall,ret]) } |]
+  let parDefs = [C.citems|$items:(mkParamDefs ps)|]
+      fnCall  = [C.citem|$item:(mkFnCall ps nm)|]
+      ret     = [C.citem|return 0;|]
+      main    = [C.cfun|int main() { $items:(parDefs ++ [fnCall,ret]) }|]
   in [C.cedecl|$func:(main)|]
 
+mkParamDefs :: FnParamSpec -> [C.BlockItem]
+mkParamDefs ps =
+  [C.citem|typename int32_t $id:(memCpyInt);|] :
+  (concat $ zipWith mkParamDef paramNames ps)
+
+mkParamDef :: C.ToExp a => String -> (CType, a) -> [C.BlockItem]
+mkParamDef nm (CFloat, val) =
+  let intVal = [C.citem|$id:(memCpyInt) = $val;|]
+      floatDec = [C.citem|float $id:(nm);|]
+  in [intVal, floatDec, mkMemCpy nm]
+mkParamDef nm (CDouble, val) = undefined
+mkParamDef nm (t, val) = [[C.citem|$ty:(convertCType t) $id:(nm) = $exp:(val);|]]
+
+mkMemCpy :: String -> C.BlockItem
+mkMemCpy nm = [C.citem|memcpy(&$id:(nm), &$id:(memCpyInt), sizeof($id:(nm)));|]
+
 mkFnCall :: FnParamSpec -> String -> C.BlockItem
-mkFnCall ps nm = undefined -- [C.cstm|$id:(nm)($args:(mkArgList ps))|]
+mkFnCall ps nm = [C.citem|$id:(nm)($args:(mkArgList ps));|]
+
+mkArgList :: FnParamSpec -> [C.Exp]
+mkArgList ps = take (length ps) (map mkArg paramNames)
+  where
+    mkArg nm = [C.cexp|$id:(nm)|]

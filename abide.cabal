@@ -91,6 +91,7 @@ test-suite test-abide
                      , containers ==0.5.*
                      , hspec ==2.*
                      , language-c-quote >=0.12 && <1.0
+                     , mainland-pretty >= 0.6 && <1.0
                      , megaparsec ==7.*
                      , parser-combinators ==1.*
                      , text ==1.*

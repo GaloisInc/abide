@@ -12,7 +12,7 @@ import TestTypes
 -- value.  For example, if a 64 bit integer is passed on the stack, we want to
 -- look for the magic value in the first byte, followed by seven 0x00 bytes.
 magicValues :: [Word64]
-magicValues = [0x11, 0x22 ..]
+magicValues = [0x11, 0x22 .. 0xFF] ++ [0x1111, 0x2222 .. 0xFFFF]
 
 int64s = zip (repeat CInt64) magicValues
 

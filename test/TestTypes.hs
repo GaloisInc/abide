@@ -18,12 +18,4 @@ type RegVals = M.Map X86_64Registers Word64
 -- are assumed to be unique, known values.
 type StackVals = M.Map Word64 StackOffset
 
--- Some compilers put parameters on the stack that are also in registers.  For
--- this reason, we need to track which parameters we've already found in
--- registers and avoid accidentally finding those on the stack.  Hence the
--- flag.
-data FFlag = Found | NotFound deriving (Eq, Show)
-
 type FnParamSpec = [(CType, Word64)]
-
-type FlaggedParams = [(CType, Word64, FFlag)]
