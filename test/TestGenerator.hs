@@ -9,6 +9,7 @@ import qualified Text.PrettyPrint.Mainland as PP
 import qualified Text.PrettyPrint.Mainland.Class as PP
 
 import           Abide.CTypes
+import           Abide.Types.Arch.X86_64
 
 import           TestTypes
 
@@ -55,9 +56,9 @@ mkIncludes =
 -- be called from the main function in order to examine the stack and
 -- registers.
 mkCalledFn :: FnParamSpec -> String -> C.Definition
-mkCalledFn paramspec name =
-  let ps = mkDecParamList paramspec
-      fn = [C.cfun|void $id:(name) ($params:(ps)) { return; } |]
+mkCalledFn pspec name =
+  let ps = mkDecParamList pspec
+      fn = [C.cfun|void $id:(name) ($params:(ps)) { $items:(inlineAsm pspec) return; } |]
   in [C.cedecl|$func:(fn)|]
 
 -- | For a function declaration, convert the internal representation of a
@@ -110,3 +111,47 @@ mkArgList :: FnParamSpec -> [C.Exp]
 mkArgList ps = take (length ps) (map mkArg paramNames)
   where
     mkArg nm = [C.cexp|$id:(nm)|]
+
+regVariables :: [(X86_64Registers, String)]
+regVariables =
+  [ (RDI,  "rdi")
+  , (RSI,  "rsi")
+  , (RDX,  "rdx")
+  , (RCX,  "rcx")
+  , (R8 ,  "r8")
+  , (R9,   "r9")
+  -- , (YMM0, "ymm0")
+  -- , (YMM1, "ymm1")
+  -- , (YMM2, "ymm2")
+  -- , (YMM3, "ymm3")
+  -- , (YMM4, "ymm4")
+  -- , (YMM5, "ymm5")
+  -- , (YMM6, "ymm6")
+  -- , (YMM7, "ymm7")
+  ]
+
+
+--------------------------------------------------------------------------------
+-- The code that wraps up some embedded assembly in order to check the
+-- contents of registers and the stack is all generated below here.
+
+inlineAsm :: FnParamSpec -> [C.BlockItem]
+inlineAsm fns =
+  let nms = map snd regVariables
+  in map mkRegVarDecl nms ++
+     map mkRegAsm nms ++
+     map printRegVar nms
+  --gpRegVariables ++ fpRegVariables ++ genAssembly
+
+mkRegVarDecl :: String -> C.BlockItem
+mkRegVarDecl nm = [C.citem|typename int64_t $id:(nm);|]
+
+mkRegAsm :: String -> C.BlockItem
+mkRegAsm nm =
+  let asmString = "\"movq %%" ++ nm ++ ", %0;\" : \"=a\" (" ++ nm ++ ")"
+  in [C.citem|__asm__( $esc:(asmString) );|]
+
+printRegVar :: String -> C.BlockItem
+printRegVar nm =
+  let fstr = nm ++ " : %lu\n"
+  in [C.citem|printf($(fstr), $id:(nm));|]
