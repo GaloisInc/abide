@@ -13,6 +13,13 @@ import           Abide.Types.Arch.X86_64
 
 import           TestTypes
 
+-- Imports to be removed
+import TestParams
+
+karl :: IO ()
+karl = PP.pprint $ mkCGenerator (snd intStackTest)
+
+
 data Test = Test
   { cGenerator :: CGenerator
   }
@@ -140,8 +147,9 @@ inlineAsm fns =
   let nms = map snd regVariables
   in map mkRegVarDecl nms ++
      map mkRegAsm nms ++
-     map printRegVar nms
-  --gpRegVariables ++ fpRegVariables ++ genAssembly
+     map printRegVar nms ++
+     zipWith memVarDecl (map fst fns) (memVarNames) ++
+     zipWith mkStackAsm (map fst fns) (memVarNames)
 
 mkRegVarDecl :: String -> C.BlockItem
 mkRegVarDecl nm = [C.citem|typename int64_t $id:(nm);|]
@@ -155,3 +163,34 @@ printRegVar :: String -> C.BlockItem
 printRegVar nm =
   let fstr = nm ++ " : %lu\n"
   in [C.citem|printf($(fstr), $id:(nm));|]
+
+memVarNames = map (\x -> "memline" ++ show x) [0..]
+
+loopVarName = "offset"
+
+-- TODO: floats are wrong, we need to memcpy most likely to get the bits
+ctypePrintfSpec :: CType -> String
+ctypePrintfSpec CInt8   = "%x"
+ctypePrintfSpec CInt16  = "%x"
+ctypePrintfSpec CInt32  = "%x"
+ctypePrintfSpec CInt64  = "%lx"
+ctypePrintfSpec CFloat  = "%f"
+ctypePrintfSpec CDouble = "%f"
+
+memVarDecl :: CType -> String -> C.BlockItem
+memVarDecl ct nm = [C.citem|$ty:(convertCType ct) $id:(nm); |]
+
+mkStackAsm :: CType -> String -> C.BlockItem
+mkStackAsm ct nm =
+  let sz :: Int
+      sz = fromIntegral $ ctypeByteSize ct
+      loopASMStr =
+        "\"movq (%%rbp, %1), %%r10\\n\\tmovq %%r10, %0\\n\" " ++
+        ": \"=a\"(" ++ nm ++ ") " ++
+        ": \"a\"(" ++ loopVarName ++ ") : \"r10\""
+      loopASM = [C.citem|__asm__( $esc:(loopASMStr) );|]
+      loopPrintStr = "offset %ld " ++ ctypePrintfSpec ct ++ "\n"
+      loopPrint = [C.citem|printf($string:(loopPrintStr), $id:(loopVarName), $id:(nm));|]
+      loopBody = [loopASM, loopPrint]
+      loop = [C.citem|for(typename uint64_t $id:(loopVarName)=0; $id:(loopVarName) <= 256; $id:(loopVarName) += $(sz)) { $items:(loopBody) }|]
+  in loop
