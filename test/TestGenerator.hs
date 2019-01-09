@@ -95,11 +95,15 @@ mkMainFn ps nm =
       main    = [C.cfun|int main() { $items:(parDefs ++ [fnCall,ret]) }|]
   in [C.cedecl|$func:(main)|]
 
+-- | First we declare an int which we will use to memcpy bits into floating
+-- point variables, and then we handle all of the remaining parameters.
 mkParamDefs :: FnParamSpec -> [C.BlockItem]
 mkParamDefs ps =
   [C.citem|typename int32_t $id:(memCpyInt);|] :
   (concat $ zipWith mkParamDef paramNames ps)
 
+-- | Declare and define one parameter, given a name for the variable, a type,
+-- and a value.
 mkParamDef :: C.ToExp a => String -> (CType, a) -> [C.BlockItem]
 mkParamDef nm (CFloat, val) =
   let intVal = [C.citem|$id:(memCpyInt) = $val;|]
@@ -108,17 +112,27 @@ mkParamDef nm (CFloat, val) =
 mkParamDef nm (CDouble, val) = undefined
 mkParamDef nm (t, val) = [[C.citem|$ty:(convertCType t) $id:(nm) = $exp:(val);|]]
 
+-- | For float/double values we add the memcpy machinery.
 mkMemCpy :: String -> C.BlockItem
 mkMemCpy nm = [C.citem|memcpy(&$id:(nm), &$id:(memCpyInt), sizeof($id:(nm)));|]
 
+-- | Generate the code to call the generated function, with a specific number
+-- of parameters which should already be defined.
 mkFnCall :: FnParamSpec -> String -> C.BlockItem
 mkFnCall ps nm = [C.citem|$id:(nm)($args:(mkArgList ps));|]
 
+-- | The argument list for calling the generated function is just a sequence
+-- of variable names.
 mkArgList :: FnParamSpec -> [C.Exp]
 mkArgList ps = take (length ps) (map mkArg paramNames)
   where
     mkArg nm = [C.cexp|$id:(nm)|]
 
+-- | A mapping from registers to names of variables used to reference them.
+-- Note that this does double duty in that we use these names both at the C
+-- level, to store and print the values contained in the registers, but also
+-- to refer to the registers directly in the embedded ASM.  For that reason,
+-- changing the names is a bad idea.
 regVariables :: [(X86_64Registers, String)]
 regVariables =
   [ (RDI,  "rdi")
@@ -142,6 +156,8 @@ regVariables =
 -- The code that wraps up some embedded assembly in order to check the
 -- contents of registers and the stack is all generated below here.
 
+-- | The main entry point for generating all of the inline assembly that
+-- inspects the registers and stack memory.
 inlineAsm :: FnParamSpec -> [C.BlockItem]
 inlineAsm fns =
   let nms = map snd regVariables
@@ -151,24 +167,33 @@ inlineAsm fns =
      zipWith memVarDecl (map fst fns) (memVarNames) ++
      zipWith mkStackAsm (map fst fns) (memVarNames)
 
+-- | Declare a variable for a register.
 mkRegVarDecl :: String -> C.BlockItem
 mkRegVarDecl nm = [C.citem|typename int64_t $id:(nm);|]
 
+-- | Generate inline assembly for extracting a register value into a C
+-- variable.
 mkRegAsm :: String -> C.BlockItem
 mkRegAsm nm =
   let asmString = "\"movq %%" ++ nm ++ ", %0;\" : \"=a\" (" ++ nm ++ ")"
   in [C.citem|__asm__( $esc:(asmString) );|]
 
+-- | Generate a printf statement that prints the register contents.
 printRegVar :: String -> C.BlockItem
 printRegVar nm =
   let fstr = nm ++ " : %lu\n"
   in [C.citem|printf($(fstr), $id:(nm));|]
 
+-- | Known variable names used to read the stack.  We use one for each
+-- parameter since they could be different sizes.
 memVarNames = map (\x -> "memline" ++ show x) [0..]
 
+-- | The known name of the loop counter used to iterate over the stack.
 loopVarName = "offset"
 
--- TODO: floats are wrong, we need to memcpy most likely to get the bits
+-- | For a given C type, return the printf format specifier that goes with it.
+-- Hex is probably easiest to work with.  TODO: floats/doubles are currently
+-- broken.  We need to read the bits into ints, rather than using floats.
 ctypePrintfSpec :: CType -> String
 ctypePrintfSpec CInt8   = "%x"
 ctypePrintfSpec CInt16  = "%x"
@@ -177,9 +202,19 @@ ctypePrintfSpec CInt64  = "%lx"
 ctypePrintfSpec CFloat  = "%f"
 ctypePrintfSpec CDouble = "%f"
 
+-- | Declare the variables used to read pieces of memory from the stack.
 memVarDecl :: CType -> String -> C.BlockItem
 memVarDecl ct nm = [C.citem|$ty:(convertCType ct) $id:(nm); |]
 
+-- | Generate the inline assembly that reads from the stack.  We do this once
+-- per parameter even though it's inefficient, because iterating over the
+-- stack with different byte increments matching the parameter we are looking
+-- for makes this much easier.
+--
+-- The general idea is that we use the C loop iterator variable as an offset
+-- to the stack pointer, and read that chunk of memory into a C variable.
+--
+-- Ideas for improvements are very welcome.
 mkStackAsm :: CType -> String -> C.BlockItem
 mkStackAsm ct nm =
   let sz :: Int
