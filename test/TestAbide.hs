@@ -3,8 +3,10 @@
 
 module Main where
 
-import           Data.List ( find, inits )
+import           Data.List ( find, inits, sortBy )
 import qualified Data.Map.Strict as M
+import           Data.Maybe ( catMaybes )
+import           Data.Ord ( comparing )
 import           Data.Proxy ( Proxy(..) )
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -21,9 +23,6 @@ import           TestGenerator
 import           TestParams
 import           TestParser
 import           TestTypes
-
-karl :: IO (TestResult, TestResult)
-karl = doTest intStackTest
 
 main :: IO ()
 main = hspec $ do
@@ -63,9 +62,10 @@ abideParamList ps =
 -- those results.
 cParamList :: FnParamSpec -> IO [(CType, Either X86_64Registers StackOffset)]
 cParamList params = do
-  vs <- dumpAndParse params
-  putStrLn "new karl" >> print vs
-  return $ matchWithDump params vs
+  (rvs',svs') <- dumpAndParse params
+  let rvs = sortBy (comparing snd) (M.toList rvs')
+  let svs = sortBy (comparing fst) (M.toList svs')
+  return $ matchWithParse params rvs svs
 
 -- | For a specification, get the dump from the C generating module and then
 -- parse the output.
@@ -73,18 +73,30 @@ dumpAndParse :: FnParamSpec -> IO (RegVals, StackVals)
 dumpAndParse params = parseCout params <$> doCTest params
 
 -- | Given the known parameters/magic values, match them up with the values
--- extracted from the dump.
-matchWithDump
+-- extracted from the dump.  Crucially, we need to make sure that parameters
+-- we find in registers aren't also found on the stack, since they sometimes
+-- show up there.
+matchWithParse
   :: FnParamSpec
-  -> (RegVals, StackVals)
+  -> [(X86_64Registers, Word64)]
+  -> [(Word64, StackOffset)]
   -> [(CType, Either X86_64Registers StackOffset)]
-matchWithDump cs vs = concatMap matchReg cs ++ concatMap matchStack cs
+matchWithParse ps rws wos =
+  let filtWos = filter (notInRegs rws) wos
+  in catMaybes $ map handleReg rws ++ map handleStack filtWos
     where
-      rvs = M.toList $ fst vs
-      svs = M.toList $ snd vs
-      matchReg (ct, w) = case find ((== w) . snd) rvs of
-        Just (reg, _) -> [(ct, Left reg)]
-        Nothing -> []
-      matchStack (ct, w) = case find ((== w) . fst) svs of
-        Just (_, so) -> [(ct, Right so)]
-        Nothing -> []
+      findParam :: Word64 -> FnParamSpec -> Maybe CType
+      findParam w cws = fst <$> find ((== w) . snd) cws
+
+      handleReg :: (X86_64Registers, Word64) -> Maybe (CType, Either X86_64Registers StackOffset)
+      handleReg (reg, w) = case findParam w ps of
+        Just ct -> Just (ct, Left reg)
+        Nothing -> Nothing
+
+      handleStack :: (Word64, StackOffset) -> Maybe (CType, Either X86_64Registers StackOffset)
+      handleStack (w, so) = case findParam w ps of
+        Just ct -> Just (ct, Right so)
+        Nothing -> Nothing
+
+      notInRegs :: [(a, Word64)] -> (Word64, b) -> Bool
+      notInRegs xs x = not $ fst x `elem` map snd xs

@@ -26,13 +26,17 @@ import           TestTypes
 
 type Parser = MP.Parsec T.Text T.Text
 
+karl :: Show a => Parser a -> T.Text -> IO ()
+karl p t = case MP.parse p "" t of
+  Right x -> print x
+  Left e -> error (show e)
+
 -- | The main entry point for parsing a dump from one of the generated C
 -- programs.
 parseCout :: FnParamSpec -> T.Text -> (RegVals, StackVals)
 parseCout ps txt =
   let ts = T.lines txt
-      rvs = parseRegs ts
-  in (rvs, parseStack ts ps rvs)
+  in (parseRegs ts, parseStack ts ps)
 
 --------------------------------------------------------------------------------
 -- Register parsing.
@@ -48,9 +52,7 @@ parseRegs t =
 isRegLine :: T.Text -> Bool
 isRegLine txt = any (`T.isPrefixOf` T.strip txt) regStrs
 
--- | The parser for a register value mapping.  LLDB uses a different format
--- for the YMM registers than for the general purpose ones, so we need to
--- handle those separately.
+-- | The parser for a register value mapping.
 parseOneReg :: Parser (X86_64Registers, Word64)
 parseOneReg = do
   regName <- parseRegName
@@ -73,7 +75,6 @@ parseRegName =  symbol "rdi" $> RDI
             <|> symbol "ymm5" $> YMM5
             <|> symbol "ymm6" $> YMM6
             <|> symbol "ymm7" $> YMM7
-            <|> symbol "rbp" $> RBP
 
 --------------------------------------------------------------------------------
 -- Stack parsing stuff
@@ -81,8 +82,8 @@ parseRegName =  symbol "rdi" $> RDI
 -- | Instantiate an empty stack offset mapping, grab the relevant lines from
 -- the debugger dump, and parse them.  This also requires the value of RSP in
 -- order to compute the proper offset.
-parseStack :: [T.Text] -> FnParamSpec -> RegVals -> StackVals
-parseStack t ps rvs =
+parseStack :: [T.Text] -> FnParamSpec -> StackVals
+parseStack t ps =
   let txt = filter isStackLine t
       ts = divideByDiv txt
       res = zipWith runStackParser ts ps
@@ -115,10 +116,12 @@ isStackLine txt = T.isPrefixOf "offset" txt
 -- | Run the actual stack parser and dispatch on the result.
 runStackParser :: [T.Text] -> (CType, Word64) -> (CType, Word64, Maybe StackOffset)
 runStackParser txt (ct, w) =
-  case MP.parse (parseOneStackParam w) "" (T.unlines txt) of
+  case MP.parse (parseOneStackParam w) "" (T.strip (T.unlines txt)) of
     Right (Just offset) -> (ct, w, Just offset)
-    Left _ -> (ct, w, Nothing)
+    Left _ -> error (show txt) -- (ct, w, Nothing)
 
+-- | All the lines relevant to some particular stack parameter are separated
+-- by newlines, so parse each portion separately.
 parseOneStackParam :: Word64 -> Parser (Maybe StackOffset)
 parseOneStackParam w = do
   xs <- sepBy parseOneStackLine MPC.newline
@@ -126,54 +129,14 @@ parseOneStackParam w = do
     Just (_, so) -> return (Just so)
     Nothing -> return Nothing
 
+-- | One line of the stack dump looks like "offset <offset> <val>"
 parseOneStackLine :: Parser (Word64, StackOffset)
 parseOneStackLine = do
   symbol "offset"
   so <- MPL.decimal
+  MPC.space
   w <- MPL.hexadecimal
   return (w, so)
-
--- -- | The stack dump looks like "0x7fffffffdd58: 11 00 00 ................"
--- -- There are 16 hex bytes per line followed by 16 dots/characters for ascii
--- parseOneStackLine
---   :: Natural
---   -- ^ The value of the RBP register
---   -> FlaggedParams
---   -> Parser [(Word64, StackOffset)]
--- parseOneStackLine rbpAddr params = do
---   startAddr <- parseHex
---   symbol ":"
---   bytes <- count 16 parseHexNoPref
---   return $ matchBytesWithParams rbpAddr (fromIntegral startAddr) params (map fromIntegral bytes)
-
--- matchBytesWithParams
---   :: Natural
---   -- ^ The value of the RBP register
---   -> Natural
---   -- ^ The address of the bytes we are inspecting
---   -> FlaggedParams
---   -> [Word8]
---   -- ^ The 16 bytes for a single line of the dump
---   -> [(Word64, StackOffset)]
--- matchBytesWithParams rbp addr params bytes =
---   catMaybes $ map (findOneParam (addr - rbp) bytes) params
-
--- -- | Try to find a particular parameter in the bytes from a single line of the
--- -- dump.  The parameters shouldn't cross the line boundary.
--- findOneParam
---   :: Natural
---   -- ^ The base offset for the line of the dump we are examining.  As we
---   -- traverse it, we will increment this.
---   -> [Word8]
---   -- ^ The bytes to search
---   -> (CType, Word64, FFlag)
---   -> Maybe (Word64, StackOffset)
--- findOneParam offset (b:bs) (ct, val, NotFound) =
---   let trailingZs = fromIntegral . pred $ ctypeByteSize ct
---   in if fromIntegral b == val && length bs >= trailingZs && all (== 0) (take trailingZs bs)
---      then Just (val, offset)
---      else findOneParam (offset + 1) bs (ct, val, NotFound)
--- findOneParam _ _ _ = Nothing
 
 --------------------------------------------------------------------------------
 -- Some generally useful parsing helpers
