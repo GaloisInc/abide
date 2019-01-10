@@ -12,7 +12,8 @@ newtype FnParameters reg = FnParameters { params :: [(CType, Either reg StackOff
   deriving (Eq, Show)
 
 -- A mapping from registers to their contents
-type RegVals = M.Map X86_64Registers Word64
+--type RegVals = M.Map X86_64Registers Word64
+type RegVals = M.Map Word64 X86_64Registers
 
 -- A mapping from argument values to their offset on the stack.  The arguments
 -- are assumed to be unique, known values.

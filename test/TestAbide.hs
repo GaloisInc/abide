@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Main where
 
-import           Data.List ( find, inits, sortBy )
+import           Data.List ( find, inits, sortOn )
 import qualified Data.Map.Strict as M
 import           Data.Maybe ( catMaybes )
 import           Data.Ord ( comparing )
@@ -27,8 +28,8 @@ import           TestTypes
 main :: IO ()
 main = hspec $ do
   it "Test parameters that all fit in registers" $ do
-    (a, c) <- doTest intStackTest
-    a `shouldBe` c  -- Do we need to sort somehow, or wrap for Eq instance?
+    (aRes, cRes) <- doTest intStackTest
+    aRes `shouldBe` cRes
 
   -- it "Test integer parameters passed on the stack" $ do
   --   (a, c) <- doTest intStackTest
@@ -43,10 +44,7 @@ type TestResult = [(CType, Either X86_64Registers StackOffset)]
 -- | Run a given test through abide and the LLDB dump parser, and return both
 -- results.
 doTest :: [(CType, Word64)] -> IO (TestResult, TestResult)
-doTest ps = do
-  let abideTest = abideParamList (map fst ps)
-  cTest <- cParamList ps
-  return (abideTest, cTest)
+doTest ps = (abideParamList (map fst ps), ) <$> cParamList ps
 
 --------------------------------------------------------------------------------
 -- Utility stuff
@@ -62,10 +60,8 @@ abideParamList ps =
 -- those results.
 cParamList :: FnParamSpec -> IO [(CType, Either X86_64Registers StackOffset)]
 cParamList params = do
-  (rvs',svs') <- dumpAndParse params
-  let rvs = sortBy (comparing snd) (M.toList rvs')
-  let svs = sortBy (comparing fst) (M.toList svs')
-  return $ matchWithParse params rvs svs
+  (rvs,svs) <- dumpAndParse params
+  return $ matchWithParse params (sortOn fst (M.toList rvs)) (sortOn fst (M.toList svs))
 
 -- | For a specification, get the dump from the C generating module and then
 -- parse the output.
@@ -78,25 +74,22 @@ dumpAndParse params = parseCout params <$> doCTest params
 -- show up there.
 matchWithParse
   :: FnParamSpec
-  -> [(X86_64Registers, Word64)]
+  -> [(Word64, X86_64Registers)]
   -> [(Word64, StackOffset)]
   -> [(CType, Either X86_64Registers StackOffset)]
 matchWithParse ps rws wos =
-  let filtWos = filter (notInRegs rws) wos
-  in catMaybes $ map handleReg rws ++ map handleStack filtWos
+  catMaybes $ map (findAndEither Left) rws ++ map (findAndEither Right) filtWos
     where
+      filtWos = filter (notInRegs rws) wos
+
+      notInRegs :: [(Word64, a)] -> (Word64, b) -> Bool
+      notInRegs xs x = fst x `notElem` map fst xs
+
       findParam :: Word64 -> FnParamSpec -> Maybe CType
       findParam w cws = fst <$> find ((== w) . snd) cws
 
-      handleReg :: (X86_64Registers, Word64) -> Maybe (CType, Either X86_64Registers StackOffset)
-      handleReg (reg, w) = case findParam w ps of
-        Just ct -> Just (ct, Left reg)
-        Nothing -> Nothing
+      findAndEither :: (a -> Either b c) -> (Word64, a) -> Maybe (CType, Either b c)
+      findAndEither f (w, x) = case findParam w ps of
+        Just ct -> Just (ct, f x)
+        _ -> Nothing
 
-      handleStack :: (Word64, StackOffset) -> Maybe (CType, Either X86_64Registers StackOffset)
-      handleStack (w, so) = case findParam w ps of
-        Just ct -> Just (ct, Right so)
-        Nothing -> Nothing
-
-      notInRegs :: [(a, Word64)] -> (Word64, b) -> Bool
-      notInRegs xs x = not $ fst x `elem` map snd xs

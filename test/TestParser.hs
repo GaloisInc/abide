@@ -26,11 +26,6 @@ import           TestTypes
 
 type Parser = MP.Parsec T.Text T.Text
 
-karl :: Show a => Parser a -> T.Text -> IO ()
-karl p t = case MP.parse p "" t of
-  Right x -> print x
-  Left e -> error (show e)
-
 -- | The main entry point for parsing a dump from one of the generated C
 -- programs.
 parseCout :: FnParamSpec -> T.Text -> (RegVals, StackVals)
@@ -53,11 +48,11 @@ isRegLine :: T.Text -> Bool
 isRegLine txt = any (`T.isPrefixOf` T.strip txt) regStrs
 
 -- | The parser for a register value mapping.
-parseOneReg :: Parser (X86_64Registers, Word64)
+parseOneReg :: Parser (Word64, X86_64Registers)
 parseOneReg = do
   regName <- parseRegName
   symbol ":"
-  (regName, ) <$> MPL.hexadecimal
+  (, regName) <$> MPL.hexadecimal
 
 -- -- | Parse the register names we care about.
 parseRegName :: Parser X86_64Registers
@@ -85,7 +80,7 @@ parseRegName =  symbol "rdi" $> RDI
 parseStack :: [T.Text] -> FnParamSpec -> StackVals
 parseStack t ps =
   let txt = filter isStackLine t
-      ts = divideByDiv txt
+      ts  = divideByDiv txt
       res = zipWith runStackParser ts ps
   in foldr insertIfFound M.empty res
 
@@ -103,7 +98,7 @@ insertIfFound _ = id
 divideByDiv :: [T.Text] -> [[T.Text]]
 divideByDiv ts =
   case break (T.isPrefixOf "parameter div") ts of
-    (p,[])    -> [p]
+    (p, [])   -> [p]
     (p, rest) -> p : divideByDiv (drop 1 rest)
 
 
@@ -118,7 +113,7 @@ runStackParser :: [T.Text] -> (CType, Word64) -> (CType, Word64, Maybe StackOffs
 runStackParser txt (ct, w) =
   case MP.parse (parseOneStackParam w) "" (T.strip (T.unlines txt)) of
     Right (Just offset) -> (ct, w, Just offset)
-    Left _ -> error (show txt) -- (ct, w, Nothing)
+    Left _ -> (ct, w, Nothing)
 
 -- | All the lines relevant to some particular stack parameter are separated
 -- by newlines, so parse each portion separately.
