@@ -176,7 +176,7 @@ mkRegAsm nm =
 -- | Generate a printf statement that prints the register contents.
 printRegVar :: String -> C.BlockItem
 printRegVar nm =
-  let fstr = nm ++ " : %lu\n"
+  let fstr = nm ++ " : %lx\n"
   in [C.citem|printf($(fstr), $id:(nm));|]
 
 -- | Known variable names used to read the stack.  We use one for each

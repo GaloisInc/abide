@@ -18,17 +18,14 @@ int64s = zip (repeat CInt64) magicValues
 
 floats = zip (repeat CFloat) magicValues
 
-exePath :: String -> String
-exePath name = "test/test-data/" ++ name ++ ".x86.exe"
-
 -- | A simple test of a few different values in registers, including both ints
 -- and floats.
-regTest :: (FilePath, FnParamSpec)
-regTest = ( exePath "reg", zip [CInt32, CInt8, CInt64, CFloat] magicValues )
+regTest :: FnParamSpec
+regTest = zip [CInt32, CInt8, CInt64, CFloat] magicValues
 
 -- | A test of just integer values on the stack
-intStackTest :: (FilePath, FnParamSpec)
-intStackTest = ( exePath "int-stack", take 10 int64s )
+intStackTest :: FnParamSpec
+intStackTest = take 10 int64s
 
-floatStackTest :: (FilePath, FnParamSpec)
-floatStackTest = ( exePath "float-stack", take 12 floats )
+floatStackTest :: FnParamSpec
+floatStackTest = take 12 floats

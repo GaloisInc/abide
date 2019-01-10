@@ -22,15 +22,14 @@ import           TestParams
 import           TestParser
 import           TestTypes
 
--- | The location of the LLDB test script.
-lldbScript :: FilePath
-lldbScript = "test/test-data/abide-lldb"
+karl :: IO (TestResult, TestResult)
+karl = doTest intStackTest
 
 main :: IO ()
 main = hspec $ do
   it "Test parameters that all fit in registers" $ do
-    (a, c) <- doTest regTest
-    True `shouldBe` True  -- Do we need to sort somehow, or wrap for Eq instance?
+    (a, c) <- doTest intStackTest
+    a `shouldBe` c  -- Do we need to sort somehow, or wrap for Eq instance?
 
   -- it "Test integer parameters passed on the stack" $ do
   --   (a, c) <- doTest intStackTest
@@ -44,10 +43,10 @@ type TestResult = [(CType, Either X86_64Registers StackOffset)]
 
 -- | Run a given test through abide and the LLDB dump parser, and return both
 -- results.
-doTest :: (FilePath, [(CType, Word64)]) -> IO (TestResult, TestResult)
+doTest :: [(CType, Word64)] -> IO (TestResult, TestResult)
 doTest ps = do
-  let abideTest = abideParamList (map fst $ snd ps)
-  cTest <- cParamList (snd ps)
+  let abideTest = abideParamList (map fst ps)
+  cTest <- cParamList ps
   return (abideTest, cTest)
 
 --------------------------------------------------------------------------------
@@ -64,8 +63,9 @@ abideParamList ps =
 -- those results.
 cParamList :: FnParamSpec -> IO [(CType, Either X86_64Registers StackOffset)]
 cParamList params = do
-  rvs <- dumpAndParse params
-  return $ matchWithDump params rvs
+  vs <- dumpAndParse params
+  putStrLn "new karl" >> print vs
+  return $ matchWithDump params vs
 
 -- | For a specification, get the dump from the C generating module and then
 -- parse the output.
@@ -82,9 +82,9 @@ matchWithDump cs vs = concatMap matchReg cs ++ concatMap matchStack cs
     where
       rvs = M.toList $ fst vs
       svs = M.toList $ snd vs
-      matchReg (ct, w) = case find (\v -> w == snd v) rvs of
+      matchReg (ct, w) = case find ((== w) . snd) rvs of
         Just (reg, _) -> [(ct, Left reg)]
         Nothing -> []
-      matchStack (ct, w) = case find (\v -> w == fst v) svs of
+      matchStack (ct, w) = case find ((== w) . fst) svs of
         Just (_, so) -> [(ct, Right so)]
         Nothing -> []

@@ -1,10 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module TestParser where
 
-import           Control.Monad.Combinators ( (<|>), count, skipMany )
+
+import           Control.Monad.Combinators ( (<|>), count, sepBy, skipMany )
 import           Data.Foldable ( foldrM )
 import           Data.Functor ( ($>) )
+import           Data.List ( break, find )
 import qualified Data.Map.Strict as M
 import           Data.Maybe ( catMaybes )
 import qualified Data.Text as T
@@ -29,15 +32,7 @@ parseCout :: FnParamSpec -> T.Text -> (RegVals, StackVals)
 parseCout ps txt =
   let ts = T.lines txt
       rvs = parseRegs ts
-  in (rvs, parseStack ts rvs)
-
--- -- | Assign flags to the parameter list indicating which were found in
--- -- registers.
--- flagParams :: RegVals -> FnParamSpec -> FlaggedParams
--- flagParams rvs ps = map (rvElem rvs) ps
---   where
---     rvElem :: RegVals -> (CType, Word64) -> (CType, Word64, FFlag)
---     rvElem rvs (t, w) = (t, w, if elem w (M.elems rvs) then Found else NotFound)
+  in (rvs, parseStack ts ps rvs)
 
 --------------------------------------------------------------------------------
 -- Register parsing.
@@ -46,7 +41,7 @@ parseCout ps txt =
 -- debugger dump, and parse each of them.
 parseRegs :: [T.Text] -> RegVals
 parseRegs t =
-  foldr (parseInsReg parseOneReg) M.empty (filter isRegLine t)
+  foldr (parseAndInsert parseOneReg) M.empty (filter isRegLine t)
 
 -- | Check whether a line is a register value mapping that we care about, as
 -- they all start with the name of the register.
@@ -60,14 +55,7 @@ parseOneReg :: Parser (X86_64Registers, Word64)
 parseOneReg = do
   regName <- parseRegName
   symbol ":"
-  parseHex >>= \w -> return (regName, w)
-
--- | Parse a hex value without a '0x' prefix
-parseHex :: Parser Word64
-parseHex = do
-  x <- MPL.hexadecimal
-  MPC.space
-  return x
+  (regName, ) <$> MPL.hexadecimal
 
 -- -- | Parse the register names we care about.
 parseRegName :: Parser X86_64Registers
@@ -93,13 +81,57 @@ parseRegName =  symbol "rdi" $> RDI
 -- | Instantiate an empty stack offset mapping, grab the relevant lines from
 -- the debugger dump, and parse them.  This also requires the value of RSP in
 -- order to compute the proper offset.
-parseStack :: [T.Text] -> RegVals -> StackVals
-parseStack t rvs = undefined
+parseStack :: [T.Text] -> FnParamSpec -> RegVals -> StackVals
+parseStack t ps rvs =
+  let txt = filter isStackLine t
+      ts = divideByDiv txt
+      res = zipWith runStackParser ts ps
+  in foldr insertIfFound M.empty res
+
+-- | For each parameter we look up, we may or may not compute a stack offset
+-- for it.  If we do, insert it into a map.
+insertIfFound :: Ord k => (a, k, Maybe v) -> M.Map k v -> M.Map k v
+insertIfFound (_, k, Just v) = M.insert k v
+insertIfFound _ = id
+
+-- | The stack dump is inefficient and dumps the whole stack for each
+-- parameter, because doing that for certain byte widths is easier than trying
+-- to stitch together bytes into larger parameters.  Each dump is separated by
+-- a line of text.  This function breaks the text according to that dividing
+-- text, so each result list is appropriate for one parameter.
+divideByDiv :: [T.Text] -> [[T.Text]]
+divideByDiv ts =
+  case break (T.isPrefixOf "parameter div") ts of
+    (p,[])    -> [p]
+    (p, rest) -> p : divideByDiv (drop 1 rest)
+
 
 -- | Determine whether a line is part of the stack memory dump, all of which
 -- start with a hex address.
 isStackLine :: T.Text -> Bool
-isStackLine txt = T.isPrefixOf "offset" (T.strip txt)
+isStackLine txt = T.isPrefixOf "offset" txt
+               || T.isPrefixOf "parameter div" txt
+
+-- | Run the actual stack parser and dispatch on the result.
+runStackParser :: [T.Text] -> (CType, Word64) -> (CType, Word64, Maybe StackOffset)
+runStackParser txt (ct, w) =
+  case MP.parse (parseOneStackParam w) "" (T.unlines txt) of
+    Right (Just offset) -> (ct, w, Just offset)
+    Left _ -> (ct, w, Nothing)
+
+parseOneStackParam :: Word64 -> Parser (Maybe StackOffset)
+parseOneStackParam w = do
+  xs <- sepBy parseOneStackLine MPC.newline
+  case find ((== w) . fst) xs of
+    Just (_, so) -> return (Just so)
+    Nothing -> return Nothing
+
+parseOneStackLine :: Parser (Word64, StackOffset)
+parseOneStackLine = do
+  symbol "offset"
+  so <- MPL.decimal
+  w <- MPL.hexadecimal
+  return (w, so)
 
 -- -- | The stack dump looks like "0x7fffffffdd58: 11 00 00 ................"
 -- -- There are 16 hex bytes per line followed by 16 dots/characters for ascii
