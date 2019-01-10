@@ -2,9 +2,16 @@
 
 module TestGenerator where
 
+import           Data.List ( intersperse )
+import qualified Data.Text as T
 import           Language.C.Pretty ()
 import qualified Language.C.Quote as C
 import qualified Language.C.Quote.C as C
+import           System.FilePath ( (</>) )
+import qualified System.FilePath as FP
+import qualified System.IO as IO
+import qualified System.IO.Temp as Tmp
+import qualified System.Process as Proc
 import qualified Text.PrettyPrint.Mainland as PP
 import qualified Text.PrettyPrint.Mainland.Class as PP
 
@@ -13,22 +20,10 @@ import           Abide.Types.Arch.X86_64
 
 import           TestTypes
 
--- Imports to be removed
-import TestParams
-
-karl :: IO ()
-karl = PP.pprint $ mkCGenerator (snd intStackTest)
-
-
-data Test = Test
-  { cGenerator :: CGenerator
-  }
-
-data CGenerator
 
 -- | Generate a test case for a given list of function parameters.
-mkTest :: FnParamSpec -> Test
-mkTest = undefined
+doCTest :: FnParamSpec -> IO T.Text
+doCTest = compileWith ccFP binName . mkCGenerator
 
 --------------------------------------------------------------------------------
 -- C Generation
@@ -40,7 +35,6 @@ calledFnName = "foo"
 -- | An infinite list of unique parameter names, used sequentially when
 -- generating functions with parameter lists.
 paramNames = map (\n -> 'p' : show n) [1..]
-
 -- | In order to store particular bytes in a floating point value, we need to
 -- memcpy them.  This integer variable name is used throughout a test program
 -- to temporarily store the value we want to copy.
@@ -161,11 +155,12 @@ regVariables =
 inlineAsm :: FnParamSpec -> [C.BlockItem]
 inlineAsm fns =
   let nms = map snd regVariables
+      printDiv = [C.citem|printf("parameter div\n");|]
   in map mkRegVarDecl nms ++
      map mkRegAsm nms ++
      map printRegVar nms ++
      zipWith memVarDecl (map fst fns) (memVarNames) ++
-     zipWith mkStackAsm (map fst fns) (memVarNames)
+     intersperse printDiv (zipWith mkStackAsm (map fst fns) (memVarNames))
 
 -- | Declare a variable for a register.
 mkRegVarDecl :: String -> C.BlockItem
@@ -227,5 +222,24 @@ mkStackAsm ct nm =
       loopPrintStr = "offset %ld " ++ ctypePrintfSpec ct ++ "\n"
       loopPrint = [C.citem|printf($string:(loopPrintStr), $id:(loopVarName), $id:(nm));|]
       loopBody = [loopASM, loopPrint]
-      loop = [C.citem|for(typename uint64_t $id:(loopVarName)=0; $id:(loopVarName) <= 256; $id:(loopVarName) += $(sz)) { $items:(loopBody) }|]
-  in loop
+  in [C.citem|for(typename uint64_t $id:(loopVarName)=0; $id:(loopVarName) <= 256; $id:(loopVarName) += $(sz)) { $items:(loopBody) }|]
+
+--------------------------------------------------------------------------------
+-- Compilation stuff below here
+
+-- Some of these global names and flags will be made part of an
+-- architecture-based type class soon.
+ccFP = "gcc"
+
+binName = "test.exe"
+
+mkCCFlags code exe = ["-o", exe, code]
+
+compileWith :: FP.FilePath -> FP.FilePath -> [C.Definition] -> IO T.Text
+compileWith cc bin code = Tmp.withSystemTempDirectory "compile-test" $ \dir -> do
+  Tmp.withSystemTempFile "test.c" $ \fp h -> do
+    PP.hPutDocLn h $ PP.ppr code
+    IO.hFlush h
+    (_, _, _) <- Proc.readProcessWithExitCode cc (mkCCFlags fp (dir </> bin)) ""
+    (ec, cout, cerr) <- Proc.readProcessWithExitCode (dir </> bin) [] ""
+    return $ T.pack cout
