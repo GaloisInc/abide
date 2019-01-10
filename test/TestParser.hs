@@ -51,7 +51,7 @@ parseRegs t =
 -- | Check whether a line is a register value mapping that we care about, as
 -- they all start with the name of the register.
 isRegLine :: T.Text -> Bool
-isRegLine txt = any (`T.isPrefixOf` (T.strip txt)) regStrs
+isRegLine txt = any (`T.isPrefixOf` T.strip txt) regStrs
 
 -- | The parser for a register value mapping.  LLDB uses a different format
 -- for the YMM registers than for the general purpose ones, so we need to

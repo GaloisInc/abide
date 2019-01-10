@@ -70,7 +70,7 @@ cParamList params = do
 -- | For a specification, get the dump from the C generating module and then
 -- parse the output.
 dumpAndParse :: FnParamSpec -> IO (RegVals, StackVals)
-dumpAndParse params = doCTest params >>= return . parseCout params
+dumpAndParse params = parseCout params <$> doCTest params
 
 -- | Given the known parameters/magic values, match them up with the values
 -- extracted from the dump.

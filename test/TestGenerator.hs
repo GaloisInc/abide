@@ -94,7 +94,7 @@ mkMainFn ps nm =
 mkParamDefs :: FnParamSpec -> [C.BlockItem]
 mkParamDefs ps =
   [C.citem|typename int32_t $id:(memCpyInt);|] :
-  (concat $ zipWith mkParamDef paramNames ps)
+  concat (zipWith mkParamDef paramNames ps)
 
 -- | Declare and define one parameter, given a name for the variable, a type,
 -- and a value.
@@ -159,8 +159,8 @@ inlineAsm fns =
   in map mkRegVarDecl nms ++
      map mkRegAsm nms ++
      map printRegVar nms ++
-     zipWith memVarDecl (map fst fns) (memVarNames) ++
-     intersperse printDiv (zipWith mkStackAsm (map fst fns) (memVarNames))
+     zipWith memVarDecl (map fst fns) memVarNames ++
+     intersperse printDiv (zipWith mkStackAsm (map fst fns) memVarNames)
 
 -- | Declare a variable for a register.
 mkRegVarDecl :: String -> C.BlockItem
@@ -236,7 +236,7 @@ binName = "test.exe"
 mkCCFlags code exe = ["-o", exe, code]
 
 compileWith :: FP.FilePath -> FP.FilePath -> [C.Definition] -> IO T.Text
-compileWith cc bin code = Tmp.withSystemTempDirectory "compile-test" $ \dir -> do
+compileWith cc bin code = Tmp.withSystemTempDirectory "compile-test" $ \dir ->
   Tmp.withSystemTempFile "test.c" $ \fp h -> do
     PP.hPutDocLn h $ PP.ppr code
     IO.hFlush h
