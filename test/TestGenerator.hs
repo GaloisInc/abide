@@ -7,6 +7,7 @@ import qualified Data.Text as T
 import           Language.C.Pretty ()
 import qualified Language.C.Quote as C
 import qualified Language.C.Quote.C as C
+import qualified System.Exit as SE
 import           System.FilePath ( (</>) )
 import qualified System.FilePath as FP
 import qualified System.IO as IO
@@ -16,10 +17,17 @@ import qualified Text.PrettyPrint.Mainland as PP
 import qualified Text.PrettyPrint.Mainland.Class as PP
 
 import           Abide.CTypes
+import           Abide.Types
 import           Abide.Types.Arch.X86_64
 
 import           TestTypes
 
+import TestParams
+
+karl :: IO ()
+karl = PP.pprint $ mkCGenerator floatStackTest
+
+karlc = doCTest floatStackTest
 
 -- | Generate a test case for a given list of function parameters.
 doCTest :: FnParamSpec -> IO T.Text
@@ -135,16 +143,18 @@ regVariables =
   , (RCX,  "rcx")
   , (R8 ,  "r8")
   , (R9,   "r9")
-  -- , (YMM0, "ymm0")
-  -- , (YMM1, "ymm1")
-  -- , (YMM2, "ymm2")
-  -- , (YMM3, "ymm3")
-  -- , (YMM4, "ymm4")
-  -- , (YMM5, "ymm5")
-  -- , (YMM6, "ymm6")
-  -- , (YMM7, "ymm7")
+  , (YMM0, "xmm0")  -- XMM for relevant bytes?
+  , (YMM1, "xmm1")
+  , (YMM2, "xmm2")
+  , (YMM3, "xmm3")
+  , (YMM4, "xmm4")
+  , (YMM5, "xmm5")
+  , (YMM6, "xmm6")
+  , (YMM7, "xmm7")
   ]
 
+-- mkMemCpyOut :: String -> [C.BlockItem]
+-- mkMemCpyOut nm = undefined
 
 --------------------------------------------------------------------------------
 -- The code that wraps up some embedded assembly in order to check the
@@ -157,7 +167,8 @@ inlineAsm fns =
   let nms = map snd regVariables
       printDiv = [C.citem|printf("parameter div\n");|]
   in map mkRegVarDecl nms ++
-     map mkRegAsm nms ++
+     map mkRegAsm regVariables ++
+     -- HERE
      map printRegVar nms ++
      zipWith memVarDecl (map fst fns) memVarNames ++
      intersperse printDiv (zipWith mkStackAsm (map fst fns) memVarNames)
@@ -166,12 +177,25 @@ inlineAsm fns =
 mkRegVarDecl :: String -> C.BlockItem
 mkRegVarDecl nm = [C.citem|typename int64_t $id:(nm);|]
 
+mkRegAsm :: (X86_64Registers, String) -> C.BlockItem
+mkRegAsm (reg, s) = if isFPReg reg
+                    then mkRegAsmFloat s
+                    else mkRegAsmInt s
+
 -- | Generate inline assembly for extracting a register value into a C
--- variable.
-mkRegAsm :: String -> C.BlockItem
-mkRegAsm nm =
+-- variable, specifically for integer class registers.
+mkRegAsmInt :: String -> C.BlockItem
+mkRegAsmInt nm =
   let asmString = "\"movq %%" ++ nm ++ ", %0;\" : \"=a\" (" ++ nm ++ ")"
   in [C.citem|__asm__( $esc:(asmString) );|]
+
+-- | Generate inline assembly for extracting a floating-point register value
+-- into a C variable.
+mkRegAsmFloat :: String -> C.BlockItem
+mkRegAsmFloat nm =
+  let asmString = "\"movapd %%" ++ nm ++ ", %0;\" : \"=x\" (" ++ nm ++ ")"
+  in [C.citem|__asm__( $esc:(asmString) );|]
+
 
 -- | Generate a printf statement that prints the register contents.
 printRegVar :: String -> C.BlockItem
@@ -194,12 +218,17 @@ ctypePrintfSpec CInt8   = "%x"
 ctypePrintfSpec CInt16  = "%x"
 ctypePrintfSpec CInt32  = "%x"
 ctypePrintfSpec CInt64  = "%lx"
-ctypePrintfSpec CFloat  = "%f"
-ctypePrintfSpec CDouble = "%f"
+ctypePrintfSpec CFloat  = "%x"
+ctypePrintfSpec CDouble = "%x"
+
+floatToInt :: CType -> CType
+floatToInt CFloat = CInt64
+floatToInt CDouble = CInt64
+floatToInt t = t
 
 -- | Declare the variables used to read pieces of memory from the stack.
 memVarDecl :: CType -> String -> C.BlockItem
-memVarDecl ct nm = [C.citem|$ty:(convertCType ct) $id:(nm); |]
+memVarDecl ct nm = [C.citem|$ty:(convertCType (floatToInt ct)) $id:(nm); |]
 
 -- | Generate the inline assembly that reads from the stack.  We do this once
 -- per parameter even though it's inefficient, because iterating over the
@@ -219,7 +248,7 @@ mkStackAsm ct nm =
         ": \"=a\"(" ++ nm ++ ") " ++
         ": \"a\"(" ++ loopVarName ++ ") : \"r10\""
       loopASM = [C.citem|__asm__( $esc:(loopASMStr) );|]
-      loopPrintStr = "offset %ld " ++ ctypePrintfSpec ct ++ "\n"
+      loopPrintStr = "offset %ld " ++ ctypePrintfSpec (floatToInt ct) ++ "\n"
       loopPrint = [C.citem|printf($string:(loopPrintStr), $id:(loopVarName), $id:(nm));|]
       loopBody = [loopASM, loopPrint]
   in [C.citem|for(typename uint64_t $id:(loopVarName)=0; $id:(loopVarName) <= 256; $id:(loopVarName) += $(sz)) { $items:(loopBody) }|]
@@ -240,6 +269,10 @@ compileWith cc bin code = Tmp.withSystemTempDirectory "compile-test" $ \dir ->
   Tmp.withSystemTempFile "test.c" $ \fp h -> do
     PP.hPutDocLn h $ PP.ppr code
     IO.hFlush h
-    (_, _, _) <- Proc.readProcessWithExitCode cc (mkCCFlags fp (dir </> bin)) ""
-    (ec, cout, cerr) <- Proc.readProcessWithExitCode (dir </> bin) [] ""
-    return $ T.pack cout
+    (ec, _, cerr) <- Proc.readProcessWithExitCode cc (mkCCFlags fp (dir </> bin)) ""
+    case ec of
+      SE.ExitSuccess -> do
+        (_, cout, _) <- Proc.readProcessWithExitCode (dir </> bin) [] ""
+        return $ T.pack cout
+      SE.ExitFailure n -> do
+        error $ show cerr

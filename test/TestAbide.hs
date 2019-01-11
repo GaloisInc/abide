@@ -27,17 +27,17 @@ import           TestTypes
 
 main :: IO ()
 main = hspec $ do
-  it "Test parameters that all fit in registers" $ do
+  -- it "Test parameters that all fit in registers" $ do
+  --   (aRes, cRes) <- doTest intStackTest
+  --   aRes `shouldBe` cRes
+
+  it "Test integer parameters passed on the stack" $ do
     (aRes, cRes) <- doTest intStackTest
     aRes `shouldBe` cRes
 
-  -- it "Test integer parameters passed on the stack" $ do
-  --   (a, c) <- doTest intStackTest
-  --   a `shouldBe` c
-
-  -- it "Test float parameters passed on the stack" $ do
-  --   (a, c) <- doTest floatStackTest
-  --   a `shouldBe` c
+  it "Test float parameters passed on the stack" $ do
+    (aRes, cRes) <- doTest floatStackTest
+    aRes `shouldBe` cRes
 
 type TestResult = [(CType, Either X86_64Registers StackOffset)]
 

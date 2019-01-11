@@ -26,6 +26,16 @@ import           TestTypes
 
 type Parser = MP.Parsec T.Text T.Text
 
+karlp :: Show a => Parser a -> T.Text -> IO ()
+karlp p txt = case MP.parse p "" txt of
+  Right x -> print x
+  Left e -> error $ show e
+-- parseAndInsert p line map = case MP.parse p "" line of
+--   Right (k, v) -> M.insert k v map
+--   Left _ -> map
+
+
+
 -- | The main entry point for parsing a dump from one of the generated C
 -- programs.
 parseCout :: FnParamSpec -> T.Text -> (RegVals, StackVals)
@@ -62,14 +72,14 @@ parseRegName =  symbol "rdi" $> RDI
             <|> symbol "rcx" $> RCX
             <|> symbol "r8"  $> R8
             <|> symbol "r9"  $> R9
-            <|> symbol "ymm0" $> YMM0
-            <|> symbol "ymm1" $> YMM1
-            <|> symbol "ymm2" $> YMM2
-            <|> symbol "ymm3" $> YMM3
-            <|> symbol "ymm4" $> YMM4
-            <|> symbol "ymm5" $> YMM5
-            <|> symbol "ymm6" $> YMM6
-            <|> symbol "ymm7" $> YMM7
+            <|> symbol "xmm0" $> YMM0
+            <|> symbol "xmm1" $> YMM1
+            <|> symbol "xmm2" $> YMM2
+            <|> symbol "xmm3" $> YMM3
+            <|> symbol "xmm4" $> YMM4
+            <|> symbol "xmm5" $> YMM5
+            <|> symbol "xmm6" $> YMM6
+            <|> symbol "xmm7" $> YMM7
 
 --------------------------------------------------------------------------------
 -- Stack parsing stuff
@@ -113,7 +123,7 @@ runStackParser :: [T.Text] -> (CType, Word64) -> (CType, Word64, Maybe StackOffs
 runStackParser txt (ct, w) =
   case MP.parse (parseOneStackParam w) "" (T.strip (T.unlines txt)) of
     Right (Just offset) -> (ct, w, Just offset)
-    Left _ -> (ct, w, Nothing)
+    _ -> (ct, w, Nothing)
 
 -- | All the lines relevant to some particular stack parameter are separated
 -- by newlines, so parse each portion separately.
@@ -145,4 +155,4 @@ parseAndInsert p line map = case MP.parse p "" line of
 symbol = MPL.symbol MPC.space
 
 regStrs = [ "rdi ", "rsi ", "rdx ", "rcx ", "r8 ", "r9 "
-          , "ymm0 ", "ymm1 ", "ymm2 ", "ymm3 ", "ymm4 ", "ymm5 ", "ymm6 ", "ymm7 " ]
+          , "xmm0 ", "xmm1 ", "xmm2 ", "xmm3 ", "xmm4 ", "xmm5 ", "xmm6 ", "xmm7 " ]
