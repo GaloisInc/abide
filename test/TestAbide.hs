@@ -27,9 +27,9 @@ import           TestTypes
 
 main :: IO ()
 main = hspec $ do
-  -- it "Test parameters that all fit in registers" $ do
-  --   (aRes, cRes) <- doTest intStackTest
-  --   aRes `shouldBe` cRes
+  it "Test parameters that all fit in registers" $ do
+    (aRes, cRes) <- doTest regTest
+    aRes `shouldBe` cRes
 
   it "Test integer parameters passed on the stack" $ do
     (aRes, cRes) <- doTest intStackTest
