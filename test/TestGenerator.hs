@@ -7,6 +7,7 @@ import qualified Data.Text as T
 import           Language.C.Pretty ()
 import qualified Language.C.Quote as C
 import qualified Language.C.Quote.C as C
+import           Numeric.Natural
 import qualified System.Exit as SE
 import           System.FilePath ( (</>) )
 import qualified System.FilePath as FP
@@ -153,9 +154,6 @@ regVariables =
   , (YMM7, "xmm7")
   ]
 
--- mkMemCpyOut :: String -> [C.BlockItem]
--- mkMemCpyOut nm = undefined
-
 --------------------------------------------------------------------------------
 -- The code that wraps up some embedded assembly in order to check the
 -- contents of registers and the stack is all generated below here.
@@ -165,13 +163,11 @@ regVariables =
 inlineAsm :: FnParamSpec -> [C.BlockItem]
 inlineAsm fns =
   let nms = map snd regVariables
-      printDiv = [C.citem|printf("parameter div\n");|]
   in map mkRegVarDecl nms ++
      map mkRegAsm regVariables ++
-     -- HERE
      map printRegVar nms ++
      zipWith memVarDecl (map fst fns) memVarNames ++
-     intersperse printDiv (zipWith mkStackAsm (map fst fns) memVarNames)
+     concat (zipWith3 mkStackAsm (map fst fns) memVarNames sizedMemVarNames)
 
 -- | Declare a variable for a register.
 mkRegVarDecl :: String -> C.BlockItem
@@ -207,6 +203,11 @@ printRegVar nm =
 -- parameter since they could be different sizes.
 memVarNames = map (\x -> "memline" ++ show x) [0..]
 
+-- | We use `movq` to get 64 bits of memory at a time, but when we compare for
+-- the values we want, we sometimes need to look at fewer bits.  These
+-- variables will hold the relevant bits.
+sizedMemVarNames = map (\x -> "lowbits" ++ show x) [0..]
+
 -- | The known name of the loop counter used to iterate over the stack.
 loopVarName = "offset"
 
@@ -222,25 +223,26 @@ ctypePrintfSpec CFloat  = "%x"
 ctypePrintfSpec CDouble = "%x"
 
 floatToInt :: CType -> CType
-floatToInt CFloat = CInt64
+floatToInt CFloat = CInt32
 floatToInt CDouble = CInt64
 floatToInt t = t
 
 -- | Declare the variables used to read pieces of memory from the stack.
 memVarDecl :: CType -> String -> C.BlockItem
-memVarDecl ct nm = [C.citem|$ty:(convertCType (floatToInt ct)) $id:(nm); |]
+memVarDecl ct nm = [C.citem|typename int64_t $id:(nm); |]
 
 -- | Generate the inline assembly that reads from the stack.  We do this once
 -- per parameter even though it's inefficient, because iterating over the
 -- stack with different byte increments matching the parameter we are looking
--- for makes this much easier.
+-- for makes this much easier.  We also read more bytes than is generally
+-- needed, because generating conditional assembly is more work.
 --
 -- The general idea is that we use the C loop iterator variable as an offset
 -- to the stack pointer, and read that chunk of memory into a C variable.
 --
 -- Ideas for improvements are very welcome.
-mkStackAsm :: CType -> String -> C.BlockItem
-mkStackAsm ct nm =
+mkStackAsm :: CType -> String -> String -> [C.BlockItem]
+mkStackAsm ct nm pfnm =
   let sz :: Int
       sz = fromIntegral $ ctypeByteSize ct
       loopASMStr =
@@ -248,10 +250,25 @@ mkStackAsm ct nm =
         ": \"=a\"(" ++ nm ++ ") " ++
         ": \"a\"(" ++ loopVarName ++ ") : \"r10\""
       loopASM = [C.citem|__asm__( $esc:(loopASMStr) );|]
-      loopPrintStr = "offset %ld " ++ ctypePrintfSpec (floatToInt ct) ++ "\n"
-      loopPrint = [C.citem|printf($string:(loopPrintStr), $id:(loopVarName), $id:(nm));|]
-      loopBody = [loopASM, loopPrint]
-  in [C.citem|for(typename uint64_t $id:(loopVarName)=0; $id:(loopVarName) <= 256; $id:(loopVarName) += $(sz)) { $items:(loopBody) }|]
+      loopBody = loopASM : mkLoopPrintf ct nm pfnm
+  in [ [C.citem|$ty:(convertCType (floatToInt ct)) $id:(pfnm);|]
+     , [C.citem|for(typename uint64_t $id:(loopVarName)=0;
+                $id:(loopVarName) <= 256;
+                $id:(loopVarName) += $(sz))
+                { $items:(loopBody) }|]
+     , [C.citem|printf("parameter div\n");|]]
+
+-- | The printing inside the loop body is a bit complicated.  Because we are
+-- using `movq`, we end up with 64 bits.  However, if we are looking for a
+-- magic value that is less than 64 bits, we can only compare against the
+-- relevant part.  So before printing, we need to take the least significant
+-- bits.
+mkLoopPrintf :: CType -> String -> String -> [C.BlockItem]
+mkLoopPrintf ct nm pfnm =
+  let loopPrintStr = "offset %ld " ++ ctypePrintfSpec (floatToInt ct) ++ "\n"
+  in [ [C.citem|$id:(pfnm) = ($ty:(convertCType (floatToInt ct)))$id:(nm);|]
+     , [C.citem|printf($string:(loopPrintStr), $id:(loopVarName), $id:(pfnm));|]
+     ]
 
 --------------------------------------------------------------------------------
 -- Compilation stuff below here
