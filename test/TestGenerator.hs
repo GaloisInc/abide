@@ -279,7 +279,7 @@ ccFP = "gcc"
 
 binName = "test.exe"
 
-mkCCFlags code exe = ["-o", exe, code]
+mkCCFlags code exe = ["-O0", "-o", exe, code]
 
 compileWith :: FP.FilePath -> FP.FilePath -> [C.Definition] -> IO T.Text
 compileWith cc bin code = Tmp.withSystemTempDirectory "compile-test" $ \dir ->
