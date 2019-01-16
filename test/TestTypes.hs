@@ -29,3 +29,4 @@ type Parser = MP.Parsec T.Text T.Text
 -- | The type class that gives us the architecture-specific functionality.
 class TestableArch arch abi where
   regParser :: Parser (OutSymbol arch abi)
+  regStrings :: proxy (arch, abi) -> [T.Text]

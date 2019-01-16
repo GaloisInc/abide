@@ -5,7 +5,6 @@
 
 module TestParser where
 
-
 import           Control.Monad.Combinators ( (<|>), count, sepBy, skipMany )
 import           Data.Foldable ( foldrM )
 import           Data.Functor ( ($>) )
@@ -26,20 +25,14 @@ import           Abide.Types.Arch.X86_64
 import           TestParams
 import           TestTypes
 
-
 karlp :: Show a => Parser a -> T.Text -> IO ()
 karlp p txt = case MP.parse p "" txt of
   Right x -> print x
   Left e -> error $ show e
--- parseAndInsert p line map = case MP.parse p "" line of
---   Right (k, v) -> M.insert k v map
---   Left _ -> map
-
 
 instance TestableArch X86_64 SystemV where
   regParser = parseX64Reg
-
-
+  regStrings _ = x64RegStrs
 
 -- | The main entry point for parsing a dump from one of the generated C
 -- programs.
@@ -63,12 +56,14 @@ parseRegs
      )
   => proxy (arch, abi) -> [T.Text] -> RegVals reg
 parseRegs px t =
-  foldr (parseAndInsert (parseOneReg px)) M.empty (filter isRegLine t)
+  foldr (parseAndInsert (parseOneReg px)) M.empty (filter (isRegLine px) t)
 
 -- | Check whether a line is a register value mapping that we care about, as
 -- they all start with the name of the register.
-isRegLine :: T.Text -> Bool
-isRegLine txt = any (`T.isPrefixOf` T.strip txt) regStrs
+isRegLine
+  :: (TestableArch arch abi)
+  => proxy (arch, abi) -> T.Text -> Bool
+isRegLine px txt = any (`T.isPrefixOf` T.strip txt) (regStrings px)
 
 -- | The parser for a register value mapping.
 parseOneReg
@@ -171,5 +166,5 @@ parseAndInsert p line map = case MP.parse p "" line of
 
 symbol = MPL.symbol MPC.space
 
-regStrs = [ "rdi ", "rsi ", "rdx ", "rcx ", "r8 ", "r9 "
-          , "xmm0 ", "xmm1 ", "xmm2 ", "xmm3 ", "xmm4 ", "xmm5 ", "xmm6 ", "xmm7 " ]
+x64RegStrs = [ "rdi ", "rsi ", "rdx ", "rcx ", "r8 ", "r9 "
+             , "xmm0 ", "xmm1 ", "xmm2 ", "xmm3 ", "xmm4 ", "xmm5 ", "xmm6 ", "xmm7 " ]
