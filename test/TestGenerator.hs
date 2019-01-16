@@ -138,20 +138,20 @@ mkArgList ps = take (length ps) (map mkArg paramNames)
 -- changing the names is a bad idea.
 regVariables :: [(X86_64Registers, String)]
 regVariables =
-  [ (RDI,  "rdi")
-  , (RSI,  "rsi")
-  , (RDX,  "rdx")
-  , (RCX,  "rcx")
-  , (R8 ,  "r8")
-  , (R9,   "r9")
-  , (YMM0, "xmm0")  -- XMM for relevant bytes?
-  , (YMM1, "xmm1")
-  , (YMM2, "xmm2")
-  , (YMM3, "xmm3")
-  , (YMM4, "xmm4")
-  , (YMM5, "xmm5")
-  , (YMM6, "xmm6")
-  , (YMM7, "xmm7")
+  [ (RDI,  "RDI")
+  , (RSI,  "RSI")
+  , (RDX,  "RDX")
+  , (RCX,  "RCX")
+  , (R8 ,  "R8")
+  , (R9,   "R9")
+  , (XMM0, "XMM0")
+  , (XMM1, "XMM1")
+  , (XMM2, "XMM2")
+  , (XMM3, "XMM3")
+  , (XMM4, "XMM4")
+  , (XMM5, "XMM5")
+  , (XMM6, "XMM6")
+  , (XMM7, "XMM7")
   ]
 
 --------------------------------------------------------------------------------

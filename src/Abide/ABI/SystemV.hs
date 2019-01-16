@@ -21,7 +21,7 @@ generate the FSTs.  More architectures coming soon.
 
 x86IntRegs = [X64.RDI, X64.RSI, X64.RDX, X64.RCX, X64.R8, X64.R9, X64.StackInt]
 
-x86FloatRegs = [X64.YMM0, X64.YMM1, X64.YMM2, X64.YMM3, X64.YMM4, X64.YMM5, X64.YMM6, X64.YMM7, X64.StackFloat]
+x86FloatRegs = [X64.XMM0, X64.XMM1, X64.XMM2, X64.XMM3, X64.XMM4, X64.XMM5, X64.XMM6, X64.XMM7, X64.StackFloat]
 
 x86MemRegs = [X64.StackMem]
 

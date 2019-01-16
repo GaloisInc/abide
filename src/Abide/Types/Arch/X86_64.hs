@@ -23,14 +23,14 @@ data X86_64Registers
   | RSP
   | R8
   | R9
-  | YMM0
-  | YMM1
-  | YMM2
-  | YMM3
-  | YMM4
-  | YMM5
-  | YMM6
-  | YMM7
+  | XMM0
+  | XMM1
+  | XMM2
+  | XMM3
+  | XMM4
+  | XMM5
+  | XMM6
+  | XMM7
   | StackInt
   | StackFloat
   | StackMem

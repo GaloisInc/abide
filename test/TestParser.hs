@@ -19,6 +19,7 @@ import qualified Text.Megaparsec.Char as MPC
 import qualified Text.Megaparsec.Char.Lexer as MPL
 
 import           Abide.CTypes
+import qualified Abide.Parse.Arch as AP
 import           Abide.Types
 import           Abide.Types.Arch.X86_64
 
@@ -31,7 +32,7 @@ karlp p txt = case MP.parse p "" txt of
   Left e -> error $ show e
 
 instance TestableArch X86_64 SystemV where
-  regParser = parseX64Reg
+  regParser = AP.x64Registers
   regStrings _ = x64RegStrs
 
 -- | The main entry point for parsing a dump from one of the generated C
@@ -73,25 +74,8 @@ parseOneReg
   => proxy (arch, abi) -> Parser (Word64, reg)
 parseOneReg p = do
   regName <- regParser
-  symbol ":"
+  symbol " :"
   (, regName) <$> MPL.hexadecimal
-
--- -- | Parse the register names we care about.
-parseX64Reg :: Parser X86_64Registers
-parseX64Reg =  symbol "rdi" $> RDI
-           <|> symbol "rsi" $> RSI
-           <|> symbol "rdx" $> RDX
-           <|> symbol "rcx" $> RCX
-           <|> symbol "r8"  $> R8
-           <|> symbol "r9"  $> R9
-           <|> symbol "xmm0" $> YMM0
-           <|> symbol "xmm1" $> YMM1
-           <|> symbol "xmm2" $> YMM2
-           <|> symbol "xmm3" $> YMM3
-           <|> symbol "xmm4" $> YMM4
-           <|> symbol "xmm5" $> YMM5
-           <|> symbol "xmm6" $> YMM6
-           <|> symbol "xmm7" $> YMM7
 
 --------------------------------------------------------------------------------
 -- Stack parsing stuff
@@ -162,9 +146,12 @@ parseOneStackLine = do
 parseAndInsert :: Ord k => Parser (k, v) -> T.Text -> M.Map k v -> M.Map k v
 parseAndInsert p line map = case MP.parse p "" line of
   Right (k, v) -> M.insert k v map
-  Left _ -> map
+  Left e -> map
 
 symbol = MPL.symbol MPC.space
 
-x64RegStrs = [ "rdi ", "rsi ", "rdx ", "rcx ", "r8 ", "r9 "
-             , "xmm0 ", "xmm1 ", "xmm2 ", "xmm3 ", "xmm4 ", "xmm5 ", "xmm6 ", "xmm7 " ]
+x64RegStrs = [ "RDI", "RSI", "RDX", "RCX", "R8", "R9"
+             , "XMM0", "XMM1", "XMM2", "XMM3", "XMM4", "XMM5", "XMM6", "XMM7" ]
+
+ppcRegStrs = [ "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10"
+             , "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13" ]

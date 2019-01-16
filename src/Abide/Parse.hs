@@ -55,6 +55,7 @@ x86_64FST :: FST X86_64 SystemV
 x86_64FST =
   case MP.parse (parseFST x64Classes x64Registers) "" (T.decodeUtf8 x86_64FSTFile) of
     Right fst -> fst
+    -- Left err -> error $ show err
 
 x86_64FSTFile :: BS.ByteString
 x86_64FSTFile = $(FE.embedFile "fst-files/x86_64.fst.txt")

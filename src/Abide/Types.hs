@@ -258,14 +258,14 @@ class IsFPReg reg where
   isFPReg :: reg -> Bool
 
 instance IsFPReg X64.X86_64Registers where
-  isFPReg X64.YMM0 = True
-  isFPReg X64.YMM1 = True
-  isFPReg X64.YMM2 = True
-  isFPReg X64.YMM3 = True
-  isFPReg X64.YMM4 = True
-  isFPReg X64.YMM5 = True
-  isFPReg X64.YMM6 = True
-  isFPReg X64.YMM7 = True
+  isFPReg X64.XMM0 = True
+  isFPReg X64.XMM1 = True
+  isFPReg X64.XMM2 = True
+  isFPReg X64.XMM3 = True
+  isFPReg X64.XMM4 = True
+  isFPReg X64.XMM5 = True
+  isFPReg X64.XMM6 = True
+  isFPReg X64.XMM7 = True
   isFPReg _ = False
 
 instance IsFPReg PPC64.PPC64Registers where
@@ -309,7 +309,7 @@ class ReturnABI arch abi where
 instance ReturnABI X86_64 SystemV where
   classReturn _ = \case
     SV.INTEGER -> X64.RAX
-    SV.SSE -> X64.YMM0
+    SV.SSE -> X64.XMM0
     c -> error $ "unsuported x86_64 class:" ++ show c
 
 instance ReturnABI PPC64 SystemV where
