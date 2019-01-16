@@ -25,14 +25,9 @@ import           TestTypes
 
 import TestParams
 
-karl :: IO ()
-karl = PP.pprint $ mkCGenerator floatStackTest
-
-karlc = doCTest floatStackTest
-
 -- | Generate a test case for a given list of function parameters.
-doCTest :: FnParamSpec -> IO T.Text
-doCTest = compileWith ccFP binName . mkCGenerator
+doCTest :: (TestableArch arch abi) => proxy (arch, abi) -> FnParamSpec -> IO T.Text
+doCTest px ps = compileWith (gccFP px) binName $ mkCGenerator ps
 
 --------------------------------------------------------------------------------
 -- C Generation

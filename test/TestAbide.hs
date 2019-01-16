@@ -96,7 +96,7 @@ dumpAndParse
      , TestableArch arch abi
      )
   => proxy (arch, abi) -> FnParamSpec -> IO (RegVals reg, StackVals)
-dumpAndParse px params = parseCout px params <$> doCTest params
+dumpAndParse px params = parseCout px params <$> doCTest px params
 
 -- | Given the known parameters/magic values, match them up with the values
 -- extracted from the dump.  Crucially, we need to make sure that parameters

@@ -19,21 +19,11 @@ import qualified Text.Megaparsec.Char as MPC
 import qualified Text.Megaparsec.Char.Lexer as MPL
 
 import           Abide.CTypes
-import qualified Abide.Parse.Arch as AP
 import           Abide.Types
 import           Abide.Types.Arch.X86_64
 
 import           TestParams
 import           TestTypes
-
-karlp :: Show a => Parser a -> T.Text -> IO ()
-karlp p txt = case MP.parse p "" txt of
-  Right x -> print x
-  Left e -> error $ show e
-
-instance TestableArch X86_64 SystemV where
-  regParser = AP.x64Registers
-  regStrings _ = x64RegStrs
 
 -- | The main entry point for parsing a dump from one of the generated C
 -- programs.
@@ -149,9 +139,3 @@ parseAndInsert p line map = case MP.parse p "" line of
   Left e -> map
 
 symbol = MPL.symbol MPC.space
-
-x64RegStrs = [ "RDI", "RSI", "RDX", "RCX", "R8", "R9"
-             , "XMM0", "XMM1", "XMM2", "XMM3", "XMM4", "XMM5", "XMM6", "XMM7" ]
-
-ppcRegStrs = [ "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10"
-             , "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13" ]
