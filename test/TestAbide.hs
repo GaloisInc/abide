@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
@@ -27,46 +29,74 @@ import           TestTypes
 
 main :: IO ()
 main = hspec $ do
+  let px64 = Proxy @(X86_64, SystemV)
+
   it "Test parameters that all fit in registers" $ do
-    (aRes, cRes) <- doTest regTest
+    (aRes, cRes) <- doTest px64 regTest
     aRes `shouldBe` cRes
 
   it "Test integer parameters passed on the stack" $ do
-    (aRes, cRes) <- doTest intStackTest
+    (aRes, cRes) <- doTest px64 intStackTest
     aRes `shouldBe` cRes
 
   it "Test float parameters passed on the stack" $ do
-    (aRes, cRes) <- doTest floatStackTest
+    (aRes, cRes) <- doTest px64 floatStackTest
     aRes `shouldBe` cRes
 
-type TestResult = [(CType, Either X86_64Registers StackOffset)]
+type TestResult reg = [(CType, Either reg StackOffset)]
 
 -- | Run a given test through abide and the LLDB dump parser, and return both
 -- results.
-doTest :: [(CType, Word64)] -> IO (TestResult, TestResult)
-doTest ps = (abideParamList (map fst ps), ) <$> cParamList ps
+doTest
+  :: ( ArchParamBaseOffset arch
+     , CTypeInput arch abi
+     , Eq (InSymbol arch abi)
+     , IsStack reg
+     , OutSymbol arch abi ~ reg
+     , ParamABI arch abi
+     , TestableArch arch abi
+     )
+  => proxy (arch, abi) -> [(CType, Word64)] -> IO (TestResult reg, TestResult reg)
+doTest px ps = (abideParamList px (map fst ps), ) <$> cParamList px ps
 
 --------------------------------------------------------------------------------
 -- Utility stuff
 
 -- | For a list of parameter types (assumed to be in order), we figure out
 -- where Abide thinks each one should be passed.
-abideParamList :: [CType] -> [(CType, Either X86_64Registers StackOffset)]
-abideParamList ps =
-  zip ps $ map (computeParam (Proxy @(X86_64, SystemV))) (tail $ inits ps)
+abideParamList
+  :: ( ArchParamBaseOffset arch
+     , CTypeInput arch abi
+     , Eq (InSymbol arch abi)
+     , IsStack reg
+     , OutSymbol arch abi ~ reg
+     , ParamABI arch abi
+     , TestableArch arch abi
+     )
+  => proxy (arch, abi) -> [CType] -> [(CType, Either reg StackOffset)]
+abideParamList px ps =
+  zip ps $ map (computeParam px) (tail $ inits ps)
 
 -- | For a kind of pseudo-oracle result, we generate a C file with some inline
 -- assembly to dump register contents and examine the stack, and then parse
 -- those results.
-cParamList :: FnParamSpec -> IO [(CType, Either X86_64Registers StackOffset)]
-cParamList params = do
-  (rvs,svs) <- dumpAndParse params
+cParamList
+  :: ( OutSymbol arch abi ~ reg
+     , TestableArch arch abi
+     )
+  => proxy (arch, abi) -> FnParamSpec -> IO [(CType, Either reg StackOffset)]
+cParamList px params = do
+  (rvs,svs) <- dumpAndParse px params
   return $ matchWithParse params (sortOn fst (M.toList rvs)) (sortOn fst (M.toList svs))
 
 -- | For a specification, get the dump from the C generating module and then
 -- parse the output.
-dumpAndParse :: FnParamSpec -> IO (RegVals, StackVals)
-dumpAndParse params = parseCout params <$> doCTest params
+dumpAndParse
+  :: ( OutSymbol arch abi ~ reg
+     , TestableArch arch abi
+     )
+  => proxy (arch, abi) -> FnParamSpec -> IO (RegVals reg, StackVals)
+dumpAndParse px params = parseCout px params <$> doCTest params
 
 -- | Given the known parameters/magic values, match them up with the values
 -- extracted from the dump.  Crucially, we need to make sure that parameters
@@ -74,9 +104,9 @@ dumpAndParse params = parseCout params <$> doCTest params
 -- show up there.
 matchWithParse
   :: FnParamSpec
-  -> [(Word64, X86_64Registers)]
+  -> [(Word64, reg)]
   -> [(Word64, StackOffset)]
-  -> [(CType, Either X86_64Registers StackOffset)]
+  -> [(CType, Either reg StackOffset)]
 matchWithParse ps rws wos =
   catMaybes $ map (findAndEither Left) rws ++ map (findAndEither Right) filtWos
     where

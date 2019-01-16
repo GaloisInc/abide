@@ -40,7 +40,7 @@ computeParam
      , IsStack o
      , ArchParamBaseOffset arch
      )
-  => Proxy (arch, abi)
+  => proxy (arch, abi)
   -> [CType]
   -> Either o StackOffset
 computeParam proxy

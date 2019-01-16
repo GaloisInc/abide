@@ -1,3 +1,5 @@
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -24,7 +26,6 @@ import           Abide.Types.Arch.X86_64
 import           TestParams
 import           TestTypes
 
-type Parser = MP.Parsec T.Text T.Text
 
 karlp :: Show a => Parser a -> T.Text -> IO ()
 karlp p txt = case MP.parse p "" txt of
@@ -35,22 +36,34 @@ karlp p txt = case MP.parse p "" txt of
 --   Left _ -> map
 
 
+instance TestableArch X86_64 SystemV where
+  regParser = parseX64Reg
+
+
 
 -- | The main entry point for parsing a dump from one of the generated C
 -- programs.
-parseCout :: FnParamSpec -> T.Text -> (RegVals, StackVals)
-parseCout ps txt =
+parseCout
+  :: ( OutSymbol arch abi ~ reg
+     , TestableArch arch abi
+     )
+  => proxy (arch, abi) -> FnParamSpec -> T.Text -> (RegVals reg, StackVals)
+parseCout px ps txt =
   let ts = T.lines txt
-  in (parseRegs ts, parseStack ts ps)
+  in (parseRegs px ts, parseStack ts ps)
 
 --------------------------------------------------------------------------------
 -- Register parsing.
 
 -- | Instantiate an empty register mapping, grab the relevant lines from the
 -- debugger dump, and parse each of them.
-parseRegs :: [T.Text] -> RegVals
-parseRegs t =
-  foldr (parseAndInsert parseOneReg) M.empty (filter isRegLine t)
+parseRegs
+  :: ( OutSymbol arch abi ~ reg
+     , TestableArch arch abi
+     )
+  => proxy (arch, abi) -> [T.Text] -> RegVals reg
+parseRegs px t =
+  foldr (parseAndInsert (parseOneReg px)) M.empty (filter isRegLine t)
 
 -- | Check whether a line is a register value mapping that we care about, as
 -- they all start with the name of the register.
@@ -58,28 +71,32 @@ isRegLine :: T.Text -> Bool
 isRegLine txt = any (`T.isPrefixOf` T.strip txt) regStrs
 
 -- | The parser for a register value mapping.
-parseOneReg :: Parser (Word64, X86_64Registers)
-parseOneReg = do
-  regName <- parseRegName
+parseOneReg
+  :: ( OutSymbol arch abi ~ reg
+     , TestableArch arch abi
+     )
+  => proxy (arch, abi) -> Parser (Word64, reg)
+parseOneReg p = do
+  regName <- regParser
   symbol ":"
   (, regName) <$> MPL.hexadecimal
 
 -- -- | Parse the register names we care about.
-parseRegName :: Parser X86_64Registers
-parseRegName =  symbol "rdi" $> RDI
-            <|> symbol "rsi" $> RSI
-            <|> symbol "rdx" $> RDX
-            <|> symbol "rcx" $> RCX
-            <|> symbol "r8"  $> R8
-            <|> symbol "r9"  $> R9
-            <|> symbol "xmm0" $> YMM0
-            <|> symbol "xmm1" $> YMM1
-            <|> symbol "xmm2" $> YMM2
-            <|> symbol "xmm3" $> YMM3
-            <|> symbol "xmm4" $> YMM4
-            <|> symbol "xmm5" $> YMM5
-            <|> symbol "xmm6" $> YMM6
-            <|> symbol "xmm7" $> YMM7
+parseX64Reg :: Parser X86_64Registers
+parseX64Reg =  symbol "rdi" $> RDI
+           <|> symbol "rsi" $> RSI
+           <|> symbol "rdx" $> RDX
+           <|> symbol "rcx" $> RCX
+           <|> symbol "r8"  $> R8
+           <|> symbol "r9"  $> R9
+           <|> symbol "xmm0" $> YMM0
+           <|> symbol "xmm1" $> YMM1
+           <|> symbol "xmm2" $> YMM2
+           <|> symbol "xmm3" $> YMM3
+           <|> symbol "xmm4" $> YMM4
+           <|> symbol "xmm5" $> YMM5
+           <|> symbol "xmm6" $> YMM6
+           <|> symbol "xmm7" $> YMM7
 
 --------------------------------------------------------------------------------
 -- Stack parsing stuff

@@ -148,9 +148,9 @@ class ParamABI arch abi where
 
 class CTypeInput arch abi where
   ctypeInputClass
-    :: Proxy (arch, abi) -> CType -> InSymbol arch abi
+    :: proxy (arch, abi) -> CType -> InSymbol arch abi
 
-  ctypeInputSize :: Proxy (arch, abi) -> CType -> Natural
+  ctypeInputSize :: proxy (arch, abi) -> CType -> Natural
 
 instance CTypeInput X86_64 SystemV where
   ctypeInputClass _ = \case
