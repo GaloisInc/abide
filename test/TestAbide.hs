@@ -52,6 +52,7 @@ doTest
      , CTypeInput arch abi
      , Eq (InSymbol arch abi)
      , IsStack reg
+     , IsFPReg reg
      , OutSymbol arch abi ~ reg
      , ParamABI arch abi
      , TestableArch arch abi
@@ -83,6 +84,7 @@ abideParamList px ps =
 cParamList
   :: ( OutSymbol arch abi ~ reg
      , TestableArch arch abi
+     , IsFPReg reg
      )
   => proxy (arch, abi) -> FnParamSpec -> IO [(CType, Either reg StackOffset)]
 cParamList px params = do
@@ -94,6 +96,7 @@ cParamList px params = do
 dumpAndParse
   :: ( OutSymbol arch abi ~ reg
      , TestableArch arch abi
+     , IsFPReg reg
      )
   => proxy (arch, abi) -> FnParamSpec -> IO (RegVals reg, StackVals)
 dumpAndParse px params = parseCout px params <$> doCTest px params

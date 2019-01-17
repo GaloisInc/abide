@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module TestGenerator where
@@ -19,15 +20,19 @@ import qualified Text.PrettyPrint.Mainland.Class as PP
 
 import           Abide.CTypes
 import           Abide.Types
-import           Abide.Types.Arch.X86_64
 
 import           TestTypes
 
 import TestParams
 
 -- | Generate a test case for a given list of function parameters.
-doCTest :: (TestableArch arch abi) => proxy (arch, abi) -> FnParamSpec -> IO T.Text
-doCTest px ps = compileWith (gccFP px) binName $ mkCGenerator ps
+doCTest
+  :: ( TestableArch arch abi
+     , OutSymbol arch abi ~ reg
+     , IsFPReg reg
+     )
+  => proxy (arch, abi) -> FnParamSpec -> IO T.Text
+doCTest px ps = compileWith (gccFP px) binName $ mkCGenerator px ps
 
 --------------------------------------------------------------------------------
 -- C Generation
@@ -45,9 +50,14 @@ paramNames = map (\n -> 'p' : show n) [1..]
 memCpyInt = "i"
 
 -- | Generate the LangC code for a particular function specification.
-mkCGenerator :: FnParamSpec -> [C.Definition]
-mkCGenerator ps =
-  mkIncludes ++ [mkCalledFn ps calledFnName, mkMainFn ps calledFnName]
+mkCGenerator
+  :: ( TestableArch arch abi
+     , OutSymbol arch abi ~ reg
+     , IsFPReg reg
+     )
+  => proxy (arch, abi) -> FnParamSpec -> [C.Definition]
+mkCGenerator px ps =
+  mkIncludes ++ [mkCalledFn px ps calledFnName, mkMainFn ps calledFnName]
 
 -- | Generate a fixed set of include files for our generated C test cases.
 mkIncludes :: [C.Definition]
@@ -60,10 +70,15 @@ mkIncludes =
 -- | Generate a function with a known name and list of parameters, which will
 -- be called from the main function in order to examine the stack and
 -- registers.
-mkCalledFn :: FnParamSpec -> String -> C.Definition
-mkCalledFn pspec name =
+mkCalledFn
+  :: ( TestableArch arch abi
+     , OutSymbol arch abi ~ reg
+     , IsFPReg reg
+     )
+  => proxy (arch, abi) -> FnParamSpec -> String -> C.Definition
+mkCalledFn px pspec name =
   let ps = mkDecParamList pspec
-      fn = [C.cfun|void $id:(name) ($params:(ps)) { $items:(inlineAsm pspec) return; } |]
+      fn = [C.cfun|void $id:(name) ($params:(ps)) { $items:(inlineAsm px pspec) return; } |]
   in [C.cedecl|$func:(fn)|]
 
 -- | For a function declaration, convert the internal representation of a
@@ -126,73 +141,55 @@ mkArgList ps = take (length ps) (map mkArg paramNames)
   where
     mkArg nm = [C.cexp|$id:(nm)|]
 
--- | A mapping from registers to names of variables used to reference them.
--- Note that this does double duty in that we use these names both at the C
--- level, to store and print the values contained in the registers, but also
--- to refer to the registers directly in the embedded ASM.  For that reason,
--- changing the names is a bad idea.
-regVariables :: [(X86_64Registers, String)]
-regVariables =
-  [ (RDI,  "RDI")
-  , (RSI,  "RSI")
-  , (RDX,  "RDX")
-  , (RCX,  "RCX")
-  , (R8 ,  "R8")
-  , (R9,   "R9")
-  , (XMM0, "XMM0")
-  , (XMM1, "XMM1")
-  , (XMM2, "XMM2")
-  , (XMM3, "XMM3")
-  , (XMM4, "XMM4")
-  , (XMM5, "XMM5")
-  , (XMM6, "XMM6")
-  , (XMM7, "XMM7")
-  ]
-
 --------------------------------------------------------------------------------
 -- The code that wraps up some embedded assembly in order to check the
 -- contents of registers and the stack is all generated below here.
 
 -- | The main entry point for generating all of the inline assembly that
 -- inspects the registers and stack memory.
-inlineAsm :: FnParamSpec -> [C.BlockItem]
-inlineAsm fns =
-  let nms = map snd regVariables
+inlineAsm
+  :: ( TestableArch arch abi
+     , OutSymbol arch abi ~ reg
+     , IsFPReg reg
+     )
+  => proxy (arch, abi) -> FnParamSpec -> [C.BlockItem]
+inlineAsm p fns =
+  let nms = map snd (regVarNames p)
   in map mkRegVarDecl nms ++
-     map mkRegAsm regVariables ++
+     map mkRegAsm (regVarNames p) ++
      map printRegVar nms ++
      zipWith memVarDecl (map fst fns) memVarNames ++
      concat (zipWith3 mkStackAsm (map fst fns) memVarNames sizedMemVarNames)
 
 -- | Declare a variable for a register.
-mkRegVarDecl :: String -> C.BlockItem
-mkRegVarDecl nm = [C.citem|typename int64_t $id:(nm);|]
+mkRegVarDecl :: T.Text -> C.BlockItem
+mkRegVarDecl nm = [C.citem|typename int64_t $id:(T.unpack nm);|]
 
-mkRegAsm :: (X86_64Registers, String) -> C.BlockItem
-mkRegAsm (reg, s) = if isFPReg reg
-                    then mkRegAsmFloat s
-                    else mkRegAsmInt s
+mkRegAsm :: (IsFPReg reg) => (reg, T.Text) -> C.BlockItem
+mkRegAsm (reg, t) = if isFPReg reg
+                    then mkRegAsmFloat t
+                    else mkRegAsmInt t
 
 -- | Generate inline assembly for extracting a register value into a C
 -- variable, specifically for integer class registers.
-mkRegAsmInt :: String -> C.BlockItem
+mkRegAsmInt :: T.Text -> C.BlockItem
 mkRegAsmInt nm =
-  let asmString = "\"movq %%" ++ nm ++ ", %0;\" : \"=a\" (" ++ nm ++ ")"
+  let asmString = "\"movq %%" ++ T.unpack nm ++ ", %0;\" : \"=a\" (" ++ T.unpack nm ++ ")"
   in [C.citem|__asm__( $esc:(asmString) );|]
 
 -- | Generate inline assembly for extracting a floating-point register value
 -- into a C variable.
-mkRegAsmFloat :: String -> C.BlockItem
+mkRegAsmFloat :: T.Text -> C.BlockItem
 mkRegAsmFloat nm =
-  let asmString = "\"movapd %%" ++ nm ++ ", %0;\" : \"=x\" (" ++ nm ++ ")"
+  let asmString = "\"movapd %%" ++ T.unpack nm ++ ", %0;\" : \"=x\" (" ++ T.unpack nm ++ ")"
   in [C.citem|__asm__( $esc:(asmString) );|]
 
 
 -- | Generate a printf statement that prints the register contents.
-printRegVar :: String -> C.BlockItem
+printRegVar :: T.Text -> C.BlockItem
 printRegVar nm =
-  let fstr = nm ++ " : %lx\n"
-  in [C.citem|printf($(fstr), $id:(nm));|]
+  let fstr = T.unpack nm ++ " : %lx\n"
+  in [C.citem|printf($(fstr), $id:(T.unpack nm));|]
 
 -- | Known variable names used to read the stack.  We use one for each
 -- parameter since they could be different sizes.
