@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module TestGenerator where
@@ -24,6 +25,9 @@ import           Abide.Types
 import           TestTypes
 
 import TestParams
+
+--------------------------------------------------------------------------------
+-- Entry point
 
 -- | Generate a test case for a given list of function parameters.
 doCTest
@@ -156,7 +160,7 @@ inlineAsm
 inlineAsm p fns =
   let nms = map snd (regVarNames p)
   in map mkRegVarDecl nms ++
-     map mkRegAsm (regVarNames p) ++
+     map (mkRegAsm p) (regVarNames p) ++
      map printRegVar nms ++
      zipWith memVarDecl (map fst fns) memVarNames ++
      concat (zipWith3 mkStackAsm (map fst fns) memVarNames sizedMemVarNames)
@@ -165,22 +169,27 @@ inlineAsm p fns =
 mkRegVarDecl :: T.Text -> C.BlockItem
 mkRegVarDecl nm = [C.citem|typename int64_t $id:(T.unpack nm);|]
 
-mkRegAsm :: (IsFPReg reg) => (reg, T.Text) -> C.BlockItem
-mkRegAsm (reg, t) = if isFPReg reg
-                    then mkRegAsmFloat t
-                    else mkRegAsmInt t
+mkRegAsm
+  :: ( IsFPReg reg
+     , OutSymbol arch abi ~ reg
+     , TestableArch arch abi
+     )
+  => proxy (arch, abi) -> (reg, T.Text) -> C.BlockItem
+mkRegAsm p (reg, t) = if isFPReg reg
+                      then mkRegAsmFloat p t
+                      else mkRegAsmInt p t
 
 -- | Generate inline assembly for extracting a register value into a C
 -- variable, specifically for integer class registers.
-mkRegAsmInt :: T.Text -> C.BlockItem
-mkRegAsmInt nm =
+mkX64RegAsmInt :: T.Text -> C.BlockItem
+mkX64RegAsmInt nm =
   let asmString = "\"movq %%" ++ T.unpack nm ++ ", %0;\" : \"=a\" (" ++ T.unpack nm ++ ")"
   in [C.citem|__asm__( $esc:(asmString) );|]
 
 -- | Generate inline assembly for extracting a floating-point register value
 -- into a C variable.
-mkRegAsmFloat :: T.Text -> C.BlockItem
-mkRegAsmFloat nm =
+mkX64RegAsmFloat :: T.Text -> C.BlockItem
+mkX64RegAsmFloat nm =
   let asmString = "\"movapd %%" ++ T.unpack nm ++ ", %0;\" : \"=x\" (" ++ T.unpack nm ++ ")"
   in [C.citem|__asm__( $esc:(asmString) );|]
 

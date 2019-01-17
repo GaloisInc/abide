@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
@@ -14,13 +15,16 @@ import           Data.Proxy ( Proxy(..) )
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           Data.Word
+import qualified Language.C.Quote as C
 import qualified System.Process as IO
 import           Test.Hspec
 
 import           Abide.Compute
 import           Abide.CTypes
 import           Abide.Types
+import qualified Abide.Parse.Arch as AP
 import           Abide.Types.Arch.X86_64
+
 
 import           TestGenerator
 import           TestParams
@@ -43,7 +47,36 @@ main = hspec $ do
     (aRes, cRes) <- doTest px64 floatStackTest
     aRes `shouldBe` cRes
 
+--------------------------------------------------------------------------------
+-- Preliminary types and data needed for testing
+
 type TestResult reg = [(CType, Either reg StackOffset)]
+
+instance TestableArch X86_64 SystemV where
+  regParser = AP.x64Registers
+  regStrings _ = x64RegStrs
+  regVarNames _ = x64RegVariables
+  gccFP _ = "gcc"
+  mkRegAsmFloat p = mkX64RegAsmFloat
+  mkRegAsmInt p = mkX64RegAsmInt
+
+
+x64RegStrs :: [T.Text]
+x64RegStrs = [ "RDI", "RSI", "RDX", "RCX", "R8", "R9"
+             , "XMM0", "XMM1", "XMM2", "XMM3", "XMM4", "XMM5", "XMM6", "XMM7" ]
+
+ppcRegStrs :: [T.Text]
+ppcRegStrs = [ "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10"
+             , "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13" ]
+
+x64RegVariables :: [(X86_64Registers, T.Text)]
+x64RegVariables =
+  let regs = [ RDI , RSI , RDX , RCX , R8 , R9
+             , XMM0 , XMM1 , XMM2 , XMM3 , XMM4 , XMM5 , XMM6 , XMM7]
+  in zip regs x64RegStrs
+
+--------------------------------------------------------------------------------
+-- Actually run tests
 
 -- | Run a given test through abide and the LLDB dump parser, and return both
 -- results.
