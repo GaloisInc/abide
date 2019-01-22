@@ -19,6 +19,7 @@ import qualified Text.Megaparsec.Char as MP
 import qualified Text.Megaparsec.Char.Lexer as MPL
 
 import           Abide.Parse.Common
+import           Abide.Types
 import           Abide.Types.Arch.PPC32 as PPC32
 import           Abide.Types.Arch.PPC64 as PPC64
 import           Abide.Types.Arch.X86_64 as X64

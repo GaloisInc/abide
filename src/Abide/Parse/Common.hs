@@ -20,9 +20,6 @@ import qualified Text.Megaparsec.Char.Lexer as MPL
 
 import Abide.Types
 
--- Type synonym for custom errors
-type Parser = MP.Parsec T.Text T.Text
-
 parseFST :: forall arch abi i o.
             (InSymbol arch abi ~ i, OutSymbol arch abi ~ o)
          => Parser i -> Parser o -> Parser (FST arch abi)

@@ -29,9 +29,11 @@ import           Control.Lens ( Lens', makeLenses, (^.) )
 import qualified Data.Map.Strict as M
 import           Data.Proxy
 import           Data.Parameterized.NatRepr
+import qualified Data.Text as T
 import qualified Data.Set as S
 import           GHC.TypeLits
 import           Numeric.Natural
+import qualified Text.Megaparsec as MP
 
 import           Abide.CTypes
 import qualified Abide.Types.ABI.SystemV as SV
@@ -330,4 +332,6 @@ computeReturn
   -> OutSymbol arch abi
 computeReturn proxy = classReturn proxy . ctypeInputClass proxy
 
-
+--------------------------------------------------------------------------------
+-- Some stuff for parsing
+type Parser = MP.Parsec T.Text T.Text

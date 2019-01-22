@@ -17,8 +17,9 @@ import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Char as MP
 import qualified Text.Megaparsec.Char.Lexer as MPL
 
-import qualified Abide.Types.ABI.SystemV as SV
 import           Abide.Parse.Common
+import           Abide.Types
+import qualified Abide.Types.ABI.SystemV as SV
 import           Abide.Types.Arch.X86_64
 
 x64Classes :: Parser SV.X86_64Classes

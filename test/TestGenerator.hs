@@ -1,9 +1,11 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeApplications #-}
 
 module TestGenerator where
 
+import           Data.Char ( isAlpha )
 import           Data.List ( intersperse )
 import qualified Data.Text as T
 import           Language.C.Pretty ()
@@ -24,8 +26,6 @@ import           Abide.Types
 
 import           TestTypes
 
-import TestParams
-
 --------------------------------------------------------------------------------
 -- Entry point
 
@@ -36,7 +36,7 @@ doCTest
      , IsFPReg reg
      )
   => proxy (arch, abi) -> FnParamSpec -> IO T.Text
-doCTest px ps = compileWith (gccFP px) binName $ mkCGenerator px ps
+doCTest px ps = compileWith px (gccFP px) binName $ mkCGenerator px ps
 
 --------------------------------------------------------------------------------
 -- C Generation
@@ -163,11 +163,11 @@ inlineAsm p fns =
      map (mkRegAsm p) (regVarNames p) ++
      map printRegVar nms ++
      zipWith memVarDecl (map fst fns) memVarNames ++
-     concat (zipWith3 mkStackAsm (map fst fns) memVarNames sizedMemVarNames)
+     concat (zipWith3 (mkStackAsm p) (map fst fns) memVarNames sizedMemVarNames)
 
 -- | Declare a variable for a register.
 mkRegVarDecl :: T.Text -> C.BlockItem
-mkRegVarDecl nm = [C.citem|typename int64_t $id:(T.unpack nm);|]
+mkRegVarDecl nm = [C.citem|typename int32_t $id:(T.unpack nm);|]
 
 mkRegAsm
   :: ( IsFPReg reg
@@ -183,21 +183,33 @@ mkRegAsm p (reg, t) = if isFPReg reg
 -- variable, specifically for integer class registers.
 mkX64RegAsmInt :: T.Text -> C.BlockItem
 mkX64RegAsmInt nm =
-  let asmString = "\"movq %%" ++ T.unpack nm ++ ", %0;\" : \"=a\" (" ++ T.unpack nm ++ ")"
+  let asmString = "\"movq %%" ++ T.unpack nm ++ ", %0\\n\\t\" : \"=a\" (" ++ T.unpack nm ++ ")"
   in [C.citem|__asm__( $esc:(asmString) );|]
+
+mkPPCRegAsmInt :: T.Text -> C.BlockItem
+mkPPCRegAsmInt nm =
+  let asmString = "\"stw " ++ trailingNumber (T.unpack nm) ++ ",%0\\n\\t\" : \"=m\"(" ++ T.unpack nm ++ ")"
+  in [C.citem|__asm__( $esc:(asmString) );|]
+
+trailingNumber :: String -> String
+trailingNumber = dropWhile isAlpha
 
 -- | Generate inline assembly for extracting a floating-point register value
 -- into a C variable.
 mkX64RegAsmFloat :: T.Text -> C.BlockItem
 mkX64RegAsmFloat nm =
-  let asmString = "\"movapd %%" ++ T.unpack nm ++ ", %0;\" : \"=x\" (" ++ T.unpack nm ++ ")"
+  let asmString = "\"movapd %%" ++ T.unpack nm ++ ", %0\\n\\t\" : \"=x\" (" ++ T.unpack nm ++ ")"
   in [C.citem|__asm__( $esc:(asmString) );|]
 
+mkPPCRegAsmFloat :: T.Text -> C.BlockItem
+mkPPCRegAsmFloat nm =
+  let asmString = "\"stfs " ++ trailingNumber (T.unpack nm) ++ ",%0\\n\\t\" : \"=m\"(" ++ T.unpack nm ++ ")"
+  in [C.citem|__asm__( $esc:(asmString) );|]
 
 -- | Generate a printf statement that prints the register contents.
 printRegVar :: T.Text -> C.BlockItem
 printRegVar nm =
-  let fstr = T.unpack nm ++ " : %lx\n"
+  let fstr = T.unpack nm ++ " : %x\n"
   in [C.citem|printf($(fstr), $id:(T.unpack nm));|]
 
 -- | Known variable names used to read the stack.  We use one for each
@@ -230,7 +242,7 @@ floatToInt t = t
 
 -- | Declare the variables used to read pieces of memory from the stack.
 memVarDecl :: CType -> String -> C.BlockItem
-memVarDecl ct nm = [C.citem|typename int64_t $id:(nm); |]
+memVarDecl ct nm = [C.citem|int $id:(nm); |]
 
 -- | Generate the inline assembly that reads from the stack.  We do this once
 -- per parameter even though it's inefficient, because iterating over the
@@ -240,10 +252,8 @@ memVarDecl ct nm = [C.citem|typename int64_t $id:(nm); |]
 --
 -- The general idea is that we use the C loop iterator variable as an offset
 -- to the stack pointer, and read that chunk of memory into a C variable.
---
--- Ideas for improvements are very welcome.
-mkStackAsm :: CType -> String -> String -> [C.BlockItem]
-mkStackAsm ct nm pfnm =
+mkX64StackAsm :: CType -> String -> String -> [C.BlockItem]
+mkX64StackAsm ct nm pfnm =
   let sz :: Int
       sz = fromIntegral $ ctypeByteSize ct
       loopASMStr =
@@ -257,7 +267,26 @@ mkStackAsm ct nm pfnm =
                 $id:(loopVarName) <= 256;
                 $id:(loopVarName) += $(sz))
                 { $items:(loopBody) }|]
-     , [C.citem|printf("parameter div\n");|]]
+     , [C.citem|printf("parameter div\n");|] ]
+
+mkPPCStackAsm :: CType -> String -> String -> [C.BlockItem]
+mkPPCStackAsm ct nm pfnm =
+  let sz :: Int
+      sz = fromIntegral $ ctypeByteSize ct
+      loopASMStr =
+        "\"stw %0,%1(1)\\n\\t\" " ++
+        ": \"=a\"(" ++ nm ++ ") " ++
+        ": \"a\"(" ++ loopVarName ++ ")"
+      loopASM = [C.citem|__asm__( $esc:(loopASMStr) );|]
+      loopBody = loopASM : mkLoopPrintf ct nm pfnm
+  in [ [C.citem|$ty:(convertCType (floatToInt ct)) $id:(pfnm);|]
+     , [C.citem|for(typename uint32_t $id:(loopVarName)=0;
+                $id:(loopVarName) <= 256;
+                $id:(loopVarName) += $(sz))
+                { $items:(loopBody) }|]
+     , [C.citem|printf("parameter div\n");|] ]
+
+
 
 -- | The printing inside the loop body is a bit complicated.  Because we are
 -- using `movq`, we end up with 64 bits.  However, if we are looking for a
@@ -266,7 +295,7 @@ mkStackAsm ct nm pfnm =
 -- bits.
 mkLoopPrintf :: CType -> String -> String -> [C.BlockItem]
 mkLoopPrintf ct nm pfnm =
-  let loopPrintStr = "offset %ld " ++ ctypePrintfSpec (floatToInt ct) ++ "\n"
+  let loopPrintStr = "offset %d " ++ ctypePrintfSpec (floatToInt ct) ++ "\n"
   in [ [C.citem|$id:(pfnm) = ($ty:(convertCType (floatToInt ct)))$id:(nm);|]
      , [C.citem|printf($string:(loopPrintStr), $id:(loopVarName), $id:(pfnm));|]
      ]
@@ -274,23 +303,22 @@ mkLoopPrintf ct nm pfnm =
 --------------------------------------------------------------------------------
 -- Compilation stuff below here
 
--- Some of these global names and flags will be made part of an
--- architecture-based type class soon.
-ccFP = "gcc"
-
 binName = "test.exe"
 
 mkCCFlags code exe = ["-O0", "-o", exe, code]
 
-compileWith :: FP.FilePath -> FP.FilePath -> [C.Definition] -> IO T.Text
-compileWith cc bin code = Tmp.withSystemTempDirectory "compile-test" $ \dir ->
+compileWith
+  :: TestableArch arch abi
+  => proxy (arch, abi) -> FP.FilePath -> FP.FilePath -> [C.Definition] -> IO T.Text
+compileWith p cc bin code = Tmp.withSystemTempDirectory "compile-test" $ \dir -> do
   Tmp.withSystemTempFile "test.c" $ \fp h -> do
     PP.hPutDocLn h $ PP.ppr code
     IO.hFlush h
     (ec, _, cerr) <- Proc.readProcessWithExitCode cc (mkCCFlags fp (dir </> bin)) ""
     case ec of
       SE.ExitSuccess -> do
-        (_, cout, _) <- Proc.readProcessWithExitCode (dir </> bin) [] ""
+        let (exe, args) = exeWrapper p (dir </> bin)
+        (_, cout, _) <- Proc.readProcessWithExitCode exe args ""
         return $ T.pack cout
       SE.ExitFailure n -> do
         error $ show cerr

@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 
 module TestParser where
 
@@ -46,8 +47,7 @@ parseRegs
      , TestableArch arch abi
      )
   => proxy (arch, abi) -> [T.Text] -> RegVals reg
-parseRegs px t =
-  foldr (parseAndInsert (parseOneReg px)) M.empty (filter (isRegLine px) t)
+parseRegs px t = foldr (parseAndInsert (parseOneReg px)) M.empty (filter (isRegLine px) t)
 
 -- | Check whether a line is a register value mapping that we care about, as
 -- they all start with the name of the register.

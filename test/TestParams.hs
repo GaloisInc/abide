@@ -14,6 +14,8 @@ import TestTypes
 magicValues :: [Word64]
 magicValues = [0x11, 0x22 .. 0xFF] ++ [0x1111, 0x2222 .. 0xFFFF]
 
+int32s = zip (repeat CInt32) magicValues
+
 int64s = zip (repeat CInt64) magicValues
 
 floats = zip (repeat CFloat) magicValues
@@ -25,7 +27,7 @@ regTest = zip [CInt32, CInt8, CInt64, CFloat] magicValues
 
 -- | A test of just integer values on the stack
 intStackTest :: FnParamSpec
-intStackTest = take 10 int64s
+intStackTest = take 10 int32s
 
 floatStackTest :: FnParamSpec
 floatStackTest = take 12 floats
