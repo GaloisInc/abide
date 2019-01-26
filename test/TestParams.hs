@@ -27,7 +27,7 @@ regTest = zip [CInt32, CInt8, CInt64, CFloat] magicValues
 
 -- | A test of just integer values on the stack
 intStackTest :: FnParamSpec
-intStackTest = take 10 int32s
+intStackTest = take 10 int64s
 
 floatStackTest :: FnParamSpec
 floatStackTest = take 12 floats

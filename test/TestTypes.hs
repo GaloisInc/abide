@@ -28,13 +28,19 @@ type StackVals = M.Map Word64 StackOffset
 
 type FnParamSpec = [(CType, Word64)]
 
+type Bytes = Int
+
 -- | The type class that gives us the architecture-specific functionality.
 class (Show (OutSymbol arch abi)) => TestableArch arch abi where
-  regParser :: Parser (OutSymbol arch abi)
+  regSize :: proxy (arch, abi) -> CType
+  numRegs :: proxy (arch, abi) -> Int
+  mkAsmHeader :: proxy (arch, abi) -> [T.Text]
+  mkAsmFooter :: proxy (arch, abi) -> [T.Text]
+  mkRegAsm :: proxy (arch, abi) -> (OutSymbol arch abi, T.Text) -> Int -> T.Text
+  mkMemAsm :: proxy (arch, abi) -> Int -> [T.Text]
   regStrings :: proxy (arch, abi) -> [T.Text]
   regVarNames :: proxy (arch, abi) -> [(OutSymbol arch abi, T.Text)]
-  gccFP :: proxy (arch, abi) -> FP.FilePath
-  mkRegAsmFloat :: proxy (arch, abi) -> T.Text -> C.BlockItem
-  mkRegAsmInt :: proxy (arch, abi) -> T.Text -> C.BlockItem
-  mkStackAsm :: proxy (arch, abi) -> CType -> String -> String -> [C.BlockItem]
-  exeWrapper :: proxy (arch, abi) -> FilePath -> (FilePath, [String])
+  ccFP :: proxy (arch, abi) -> FP.FilePath
+  ccFlags :: proxy (arch, abi) -> [String]
+  exeWrapper :: proxy (arch, abi) -> FP.FilePath -> (FP.FilePath, [String])
+  regParser :: Parser (OutSymbol arch abi)

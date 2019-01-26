@@ -37,37 +37,35 @@ import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Error as MP
 import qualified Text.PrettyPrint.Mainland as PP
 import qualified Text.PrettyPrint.Mainland.Class as PP
-karl :: IO ()
-karl = PP.pprint (mkCGenerator (Proxy @(PPC32, SystemV)) intStackTest)
 
-karltxt = T.lines "R3 : 11\nR4 : 22\nR5 : 33\nR6 : 44\nR7 : 55\nR8 : 66\nR9 : 0\nR10 : 0\nF1 : 0\nF2 : 0"
+karlp = parseRegs (Proxy @(PPC64, SystemV)) txt
+  where txt = [ "R3 : 11"
+              , "R4 : 22"
+              , "R5 : 33"
+              , "R6 : 44"
+              , "R7 : 55"
+              , "R8 : 66"
+              , "R9 : 77"
+              , "R10 : 88"
+              ]
 
-karlp :: IO ()
-karlp = print $ parseRegs (Proxy @(PPC32, SystemV)) karltxt
-
--- karlp :: IO ()
--- karlp = case MP.parse (parseRegs (Proxy @(PPC32, SystemV))) "" karltxt of
---   Right a -> print a
---   Left e -> print e
-
-px64 = Proxy @(X86_64, SystemV)
-pp32 = Proxy @(PPC32, SystemV)
+x64 = Proxy @(X86_64, SystemV)
+ppc64 = Proxy @(PPC64, SystemV)
 
 main :: IO ()
 main = hspec $ do
-  let px64 = Proxy @(X86_64, SystemV)
-      pp32 = Proxy @(PPC32, SystemV)
+  -- let
 
-  -- it "Test parameters that all fit in registers" $ do
-  --   (aRes, cRes) <- doTest pp32 regTest
-  --   aRes `shouldBe` cRes
+  it "Test parameters that all fit in registers" $ do
+    (aRes, cRes) <- doTest x64 regTest
+    aRes `shouldBe` cRes
 
   it "Test integer parameters passed on the stack" $ do
-    (aRes, cRes) <- doTest pp32 intStackTest
+    (aRes, cRes) <- doTest x64 intStackTest
     aRes `shouldBe` cRes
 
   it "Test float parameters passed on the stack" $ do
-    (aRes, cRes) <- doTest pp32 floatStackTest
+    (aRes, cRes) <- doTest x64 floatStackTest
     aRes `shouldBe` cRes
 
 --------------------------------------------------------------------------------
@@ -76,25 +74,32 @@ main = hspec $ do
 type TestResult reg = [(CType, Either reg StackOffset)]
 
 instance TestableArch X86_64 SystemV where
+  regSize _ = CInt64
+  numRegs _ = length x64RegStrs
   regParser = AP.x64Registers
   regStrings _ = x64RegStrs
   regVarNames _ = x64RegVariables
-  gccFP _ = "gcc"
-  mkRegAsmFloat p = mkX64RegAsmFloat
-  mkRegAsmInt p = mkX64RegAsmInt
-  mkStackAsm p = mkX64StackAsm
-  exeWrapper _ x = (x, [])
+  mkAsmHeader _ = mkX64AsmHeader
+  mkAsmFooter _ = ["\tret"]
+  mkRegAsm _ = mkX64RegAsm
+  mkMemAsm p = mkX64MemAsm
+  ccFP _ = "gcc"
+  ccFlags _ = []
+  exeWrapper _ exe = (exe, [])
 
-instance TestableArch PPC32 SystemV where
-  regParser = AP.ppc32Registers
+instance TestableArch PPC64 SystemV where
+  regSize _ = CInt64
+  numRegs _ = length ppcRegStrs
+  regParser = AP.ppc64Registers
   regStrings _ = ppcRegStrs
-  regVarNames _ = ppcRegVariables
-  gccFP _ = "powerpc-linux-gnu-gcc"
-  mkRegAsmFloat _ = mkPPCRegAsmFloat
-  mkRegAsmInt _ = mkPPCRegAsmInt
-  mkStackAsm _ = mkPPCStackAsm
-  exeWrapper _ x = ("qemu-ppc", [x])
-
+  regVarNames _ = ppc64RegVariables
+  mkAsmHeader _ = mkPPC64AsmHeader
+  mkAsmFooter _ = []
+  mkRegAsm _ = mkPPC64RegAsm
+  mkMemAsm _ = mkPPC64MemAsm
+  ccFP _ = "powerpc64-linux-gnu-gcc"
+  ccFlags _ = []
+  exeWrapper _ exe = ("qemu-ppc64", [exe])
 
 x64RegStrs :: [T.Text]
 x64RegStrs = [ "RDI", "RSI", "RDX", "RCX", "R8", "R9"
@@ -110,10 +115,10 @@ x64RegVariables =
              , XMM0 , XMM1 , XMM2 , XMM3 , XMM4 , XMM5 , XMM6 , XMM7 ]
   in zip regs x64RegStrs
 
-ppcRegVariables :: [(P32.PPC32Registers, T.Text)]
-ppcRegVariables =
-  let regs = [ P32.R3, P32.R4, P32.R5, P32.R6, P32.R7, P32.R8, P32.R9
-             , P32.F1, P32.F2, P32.F3, P32.F4, P32.F5, P32.F6, P32.F7, P32.F8, P32.F9, P32.F10, P32.F11, P32.F12, P32.F13 ]
+ppc64RegVariables :: [(P64.PPC64Registers, T.Text)]
+ppc64RegVariables =
+  let regs = [ P64.R3, P64.R4, P64.R5, P64.R6, P64.R7, P64.R8, P64.R9, P64.R10
+             , P64.F1, P64.F2, P64.F3, P64.F4, P64.F5, P64.F6, P64.F7, P64.F8, P64.F9, P64.F10, P64.F11, P64.F12, P64.F13 ]
   in zip regs ppcRegStrs
 
 

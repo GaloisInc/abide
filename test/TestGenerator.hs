@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -8,6 +9,7 @@ module TestGenerator where
 import           Data.Char ( isAlpha )
 import           Data.List ( intersperse )
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import           Language.C.Pretty ()
 import qualified Language.C.Quote as C
 import qualified Language.C.Quote.C as C
@@ -23,6 +25,8 @@ import qualified Text.PrettyPrint.Mainland.Class as PP
 
 import           Abide.CTypes
 import           Abide.Types
+import           Abide.Types.Arch.X86_64
+import qualified Abide.Types.Arch.PPC64 as P64
 
 import           TestTypes
 
@@ -36,21 +40,25 @@ doCTest
      , IsFPReg reg
      )
   => proxy (arch, abi) -> FnParamSpec -> IO T.Text
-doCTest px ps = compileWith px (gccFP px) binName $ mkCGenerator px ps
+doCTest px ps = compileWith px binName (mkCGenerator px ps) (T.unlines $ mkASM px)
 
 --------------------------------------------------------------------------------
 -- C Generation
 
 -- | A fixed name for the function that will be generated and called in any
 -- given test case.
+calledFnName :: T.Text
 calledFnName = "foo"
 
 -- | An infinite list of unique parameter names, used sequentially when
 -- generating functions with parameter lists.
-paramNames = map (\n -> 'p' : show n) [1..]
+paramNames :: [T.Text]
+paramNames = map (\n -> T.pack ('p' : show n)) [1..]
+
 -- | In order to store particular bytes in a floating point value, we need to
 -- memcpy them.  This integer variable name is used throughout a test program
 -- to temporarily store the value we want to copy.
+memCpyInt :: T.Text
 memCpyInt = "i"
 
 -- | Generate the LangC code for a particular function specification.
@@ -61,7 +69,9 @@ mkCGenerator
      )
   => proxy (arch, abi) -> FnParamSpec -> [C.Definition]
 mkCGenerator px ps =
-  mkIncludes ++ [mkCalledFn px ps calledFnName, mkMainFn ps calledFnName]
+  mkIncludes ++
+  mkGlobals px ps ++
+  [ mkMainFn px ps calledFnName ]
 
 -- | Generate a fixed set of include files for our generated C test cases.
 mkIncludes :: [C.Definition]
@@ -71,26 +81,54 @@ mkIncludes =
   , [C.cedecl|$esc:("#include <string.h>")|]
   ]
 
--- | Generate a function with a known name and list of parameters, which will
--- be called from the main function in order to examine the stack and
--- registers.
-mkCalledFn
-  :: ( TestableArch arch abi
-     , OutSymbol arch abi ~ reg
-     , IsFPReg reg
-     )
-  => proxy (arch, abi) -> FnParamSpec -> String -> C.Definition
-mkCalledFn px pspec name =
-  let ps = mkDecParamList pspec
-      fn = [C.cfun|void $id:(name) ($params:(ps)) { $items:(inlineAsm px pspec) return; } |]
-  in [C.cedecl|$func:(fn)|]
+-- | We have, at least, the declaration for the extern function (which will be
+-- the assembly code) and the global array of values, which will get filled by
+-- the assembly code for printing.
+mkGlobals
+  :: ( TestableArch arch abi )
+  => proxy (arch, abi) -> FnParamSpec -> [C.Definition]
+mkGlobals px ps = [ mkExternFnDec ps, mkRegArray px, mkMemArray px]
+
+-- | Declare the extern function (i.e., the assembly code function) we will
+-- call.  The symbol name has to be right and so does the parameter list.
+-- This will trick the compiler into putting the parameters into the locations
+-- expected according to the ABI.
+mkExternFnDec :: FnParamSpec -> C.Definition
+mkExternFnDec ps =
+  let pars = mkDecParamList ps
+  in [C.cedecl|extern void $id:(calledFnName) ($params:(pars));|]
+
+-- | A variable name for the global array of values.
+globalRegArrayName :: T.Text
+globalRegArrayName = "gRegs"
+
+globalParArrayName :: T.Text
+globalParArrayName = "gPars"
+
+-- | A length for the global stack memory array.
+globalParArrayLen :: Int
+globalParArrayLen = 64
+
+-- | Declare the global array, which should be an array of values
+-- appropriately sized for the architecture.
+mkRegArray
+  :: ( TestableArch arch abi )
+  => proxy (arch, abi) -> C.Definition
+mkRegArray px =
+  [C.cedecl|$ty:(convertCType (regSize px)) $id:(globalRegArrayName) [$int:(numRegs px)];|]
+
+mkMemArray
+  :: ( TestableArch arch abi )
+  => proxy (arch, abi) -> C.Definition
+mkMemArray px =
+  [C.cedecl|$ty:(convertCType (regSize px)) $id:(globalParArrayName) [$(globalParArrayLen)];|]
 
 -- | For a function declaration, convert the internal representation of a
 -- parameter list to the corresponding LangC definitions.
 mkDecParamList :: FnParamSpec -> [C.Param]
 mkDecParamList ps = zipWith mkDecParam (map fst ps) paramNames
   where
-    mkDecParam :: CType -> String -> C.Param
+    mkDecParam :: CType -> T.Text -> C.Param
     mkDecParam tp nm = [C.cparam|$ty:(convertCType tp) $id:(nm)|]
 
 -- | Convert an Abide representation of a type to a LangC one.
@@ -104,24 +142,27 @@ convertCType CDouble = [C.cty|double|]
 
 -- | Generate the main function, which will generally just set up the
 -- parameters to call one function and return.
-mkMainFn :: FnParamSpec -> String -> C.Definition
-mkMainFn ps nm =
+mkMainFn
+  :: TestableArch arch abi
+  => proxy (arch, abi) -> FnParamSpec -> T.Text -> C.Definition
+mkMainFn px ps nm =
   let parDefs = [C.citems|$items:(mkParamDefs ps)|]
-      fnCall  = [C.citem|$item:(mkFnCall ps nm)|]
+      fnCall  = [C.citem|$item:(mkFnCall ps)|]
       ret     = [C.citem|return 0;|]
-      main    = [C.cfun|int main() { $items:(parDefs ++ [fnCall,ret]) }|]
+      prints  = zipWith (printRegVar px) (regStrings px) [0..]
+      main    = [C.cfun|int main() { $items:(parDefs ++ [fnCall] ++ prints ++ [ret]) }|]
   in [C.cedecl|$func:(main)|]
 
 -- | First we declare an int which we will use to memcpy bits into floating
 -- point variables, and then we handle all of the remaining parameters.
 mkParamDefs :: FnParamSpec -> [C.BlockItem]
 mkParamDefs ps =
-  [C.citem|typename int32_t $id:(memCpyInt);|] :
+  [C.citem|int $id:(memCpyInt);|] :
   concat (zipWith mkParamDef paramNames ps)
 
 -- | Declare and define one parameter, given a name for the variable, a type,
 -- and a value.
-mkParamDef :: C.ToExp a => String -> (CType, a) -> [C.BlockItem]
+mkParamDef :: C.ToExp a => T.Text -> (CType, a) -> [C.BlockItem]
 mkParamDef nm (CFloat, val) =
   let intVal = [C.citem|$id:(memCpyInt) = $val;|]
       floatDec = [C.citem|float $id:(nm);|]
@@ -130,13 +171,13 @@ mkParamDef nm (CDouble, val) = undefined
 mkParamDef nm (t, val) = [[C.citem|$ty:(convertCType t) $id:(nm) = $exp:(val);|]]
 
 -- | For float/double values we add the memcpy machinery.
-mkMemCpy :: String -> C.BlockItem
+mkMemCpy :: T.Text -> C.BlockItem
 mkMemCpy nm = [C.citem|memcpy(&$id:(nm), &$id:(memCpyInt), sizeof($id:(nm)));|]
 
 -- | Generate the code to call the generated function, with a specific number
 -- of parameters which should already be defined.
-mkFnCall :: FnParamSpec -> String -> C.BlockItem
-mkFnCall ps nm = [C.citem|$id:(nm)($args:(mkArgList ps));|]
+mkFnCall :: FnParamSpec -> C.BlockItem
+mkFnCall ps = [C.citem|$id:(calledFnName)($args:(mkArgList ps));|]
 
 -- | The argument list for calling the generated function is just a sequence
 -- of variable names.
@@ -146,82 +187,21 @@ mkArgList ps = take (length ps) (map mkArg paramNames)
     mkArg nm = [C.cexp|$id:(nm)|]
 
 --------------------------------------------------------------------------------
--- The code that wraps up some embedded assembly in order to check the
--- contents of registers and the stack is all generated below here.
-
--- | The main entry point for generating all of the inline assembly that
--- inspects the registers and stack memory.
-inlineAsm
-  :: ( TestableArch arch abi
-     , OutSymbol arch abi ~ reg
-     , IsFPReg reg
-     )
-  => proxy (arch, abi) -> FnParamSpec -> [C.BlockItem]
-inlineAsm p fns =
-  let nms = map snd (regVarNames p)
-  in map mkRegVarDecl nms ++
-     map (mkRegAsm p) (regVarNames p) ++
-     map printRegVar nms ++
-     zipWith memVarDecl (map fst fns) memVarNames ++
-     concat (zipWith3 (mkStackAsm p) (map fst fns) memVarNames sizedMemVarNames)
-
--- | Declare a variable for a register.
-mkRegVarDecl :: T.Text -> C.BlockItem
-mkRegVarDecl nm = [C.citem|typename int32_t $id:(T.unpack nm);|]
-
-mkRegAsm
-  :: ( IsFPReg reg
-     , OutSymbol arch abi ~ reg
-     , TestableArch arch abi
-     )
-  => proxy (arch, abi) -> (reg, T.Text) -> C.BlockItem
-mkRegAsm p (reg, t) = if isFPReg reg
-                      then mkRegAsmFloat p t
-                      else mkRegAsmInt p t
-
--- | Generate inline assembly for extracting a register value into a C
--- variable, specifically for integer class registers.
-mkX64RegAsmInt :: T.Text -> C.BlockItem
-mkX64RegAsmInt nm =
-  let asmString = "\"movq %%" ++ T.unpack nm ++ ", %0\\n\\t\" : \"=a\" (" ++ T.unpack nm ++ ")"
-  in [C.citem|__asm__( $esc:(asmString) );|]
-
-mkPPCRegAsmInt :: T.Text -> C.BlockItem
-mkPPCRegAsmInt nm =
-  let asmString = "\"stw " ++ trailingNumber (T.unpack nm) ++ ",%0\\n\\t\" : \"=m\"(" ++ T.unpack nm ++ ")"
-  in [C.citem|__asm__( $esc:(asmString) );|]
-
-trailingNumber :: String -> String
-trailingNumber = dropWhile isAlpha
-
--- | Generate inline assembly for extracting a floating-point register value
--- into a C variable.
-mkX64RegAsmFloat :: T.Text -> C.BlockItem
-mkX64RegAsmFloat nm =
-  let asmString = "\"movapd %%" ++ T.unpack nm ++ ", %0\\n\\t\" : \"=x\" (" ++ T.unpack nm ++ ")"
-  in [C.citem|__asm__( $esc:(asmString) );|]
-
-mkPPCRegAsmFloat :: T.Text -> C.BlockItem
-mkPPCRegAsmFloat nm =
-  let asmString = "\"stfs " ++ trailingNumber (T.unpack nm) ++ ",%0\\n\\t\" : \"=m\"(" ++ T.unpack nm ++ ")"
-  in [C.citem|__asm__( $esc:(asmString) );|]
+-- Printing of results
 
 -- | Generate a printf statement that prints the register contents.
-printRegVar :: T.Text -> C.BlockItem
-printRegVar nm =
-  let fstr = T.unpack nm ++ " : %x\n"
-  in [C.citem|printf($(fstr), $id:(T.unpack nm));|]
-
--- | Known variable names used to read the stack.  We use one for each
--- parameter since they could be different sizes.
-memVarNames = map (\x -> "memline" ++ show x) [0..]
+printRegVar :: TestableArch arch abi => proxy (arch, abi) -> T.Text -> Int -> C.BlockItem
+printRegVar px reg off =
+  let pfstr = T.unpack reg ++ " %lx\n"
+  in [C.citem|printf($string:(pfstr), $id:(globalRegArrayName)[$(off)]);|]
 
 -- | We use `movq` to get 64 bits of memory at a time, but when we compare for
 -- the values we want, we sometimes need to look at fewer bits.  These
 -- variables will hold the relevant bits.
-sizedMemVarNames = map (\x -> "lowbits" ++ show x) [0..]
+sizedMemVarName = "lowbits"
 
 -- | The known name of the loop counter used to iterate over the stack.
+loopVarName :: T.Text
 loopVarName = "offset"
 
 -- | For a given C type, return the printf format specifier that goes with it.
@@ -231,7 +211,7 @@ ctypePrintfSpec :: CType -> String
 ctypePrintfSpec CInt8   = "%x"
 ctypePrintfSpec CInt16  = "%x"
 ctypePrintfSpec CInt32  = "%x"
-ctypePrintfSpec CInt64  = "%lx"
+ctypePrintfSpec CInt64  = "%llx"
 ctypePrintfSpec CFloat  = "%x"
 ctypePrintfSpec CDouble = "%x"
 
@@ -240,85 +220,100 @@ floatToInt CFloat = CInt32
 floatToInt CDouble = CInt64
 floatToInt t = t
 
--- | Declare the variables used to read pieces of memory from the stack.
-memVarDecl :: CType -> String -> C.BlockItem
-memVarDecl ct nm = [C.citem|int $id:(nm); |]
-
--- | Generate the inline assembly that reads from the stack.  We do this once
--- per parameter even though it's inefficient, because iterating over the
--- stack with different byte increments matching the parameter we are looking
--- for makes this much easier.  We also read more bytes than is generally
--- needed, because generating conditional assembly is more work.
---
--- The general idea is that we use the C loop iterator variable as an offset
--- to the stack pointer, and read that chunk of memory into a C variable.
-mkX64StackAsm :: CType -> String -> String -> [C.BlockItem]
-mkX64StackAsm ct nm pfnm =
-  let sz :: Int
-      sz = fromIntegral $ ctypeByteSize ct
-      loopASMStr =
-        "\"movq (%%rbp, %1), %%r10\\n\\tmovq %%r10, %0\\n\" " ++
-        ": \"=a\"(" ++ nm ++ ") " ++
-        ": \"a\"(" ++ loopVarName ++ ") : \"r10\""
-      loopASM = [C.citem|__asm__( $esc:(loopASMStr) );|]
-      loopBody = loopASM : mkLoopPrintf ct nm pfnm
-  in [ [C.citem|$ty:(convertCType (floatToInt ct)) $id:(pfnm);|]
-     , [C.citem|for(typename uint64_t $id:(loopVarName)=0;
-                $id:(loopVarName) <= 256;
-                $id:(loopVarName) += $(sz))
-                { $items:(loopBody) }|]
-     , [C.citem|printf("parameter div\n");|] ]
-
-mkPPCStackAsm :: CType -> String -> String -> [C.BlockItem]
-mkPPCStackAsm ct nm pfnm =
-  let sz :: Int
-      sz = fromIntegral $ ctypeByteSize ct
-      loopASMStr =
-        "\"stw %0,%1(1)\\n\\t\" " ++
-        ": \"=a\"(" ++ nm ++ ") " ++
-        ": \"a\"(" ++ loopVarName ++ ")"
-      loopASM = [C.citem|__asm__( $esc:(loopASMStr) );|]
-      loopBody = loopASM : mkLoopPrintf ct nm pfnm
-  in [ [C.citem|$ty:(convertCType (floatToInt ct)) $id:(pfnm);|]
-     , [C.citem|for(typename uint32_t $id:(loopVarName)=0;
-                $id:(loopVarName) <= 256;
-                $id:(loopVarName) += $(sz))
-                { $items:(loopBody) }|]
-     , [C.citem|printf("parameter div\n");|] ]
-
-
-
 -- | The printing inside the loop body is a bit complicated.  Because we are
 -- using `movq`, we end up with 64 bits.  However, if we are looking for a
 -- magic value that is less than 64 bits, we can only compare against the
 -- relevant part.  So before printing, we need to take the least significant
 -- bits.
-mkLoopPrintf :: CType -> String -> String -> [C.BlockItem]
+mkLoopPrintf :: CType -> T.Text -> T.Text -> [C.BlockItem]
 mkLoopPrintf ct nm pfnm =
   let loopPrintStr = "offset %d " ++ ctypePrintfSpec (floatToInt ct) ++ "\n"
   in [ [C.citem|$id:(pfnm) = ($ty:(convertCType (floatToInt ct)))$id:(nm);|]
      , [C.citem|printf($string:(loopPrintStr), $id:(loopVarName), $id:(pfnm));|]
      ]
 
+
+--------------------------------------------------------------------------------
+-- The code that wraps up some embedded assembly in order to check the
+-- contents of registers and the stack is all generated below here.
+
+mkASM :: TestableArch arch abi => proxy (arch, abi) -> [T.Text]
+mkASM p =
+  mkAsmHeader p ++
+  zipWith (mkRegAsm p) (regVarNames p) (map (* 8) [0..]) ++
+  -- concatMap (mkMemAsm p) (map (* 8) [0..(globalParArrayLen - 2)]) ++
+  mkAsmFooter p
+
+mkX64AsmHeader :: [T.Text]
+mkX64AsmHeader =
+  [ ".intel_syntax noprefix"
+  , ".section .text"
+  , ".globl foo"
+  , ".type foo, @function"
+  , "foo:"
+  ]
+
+mkPPC64AsmHeader :: [T.Text]
+mkPPC64AsmHeader = []
+
+mkX64RegAsm :: (X86_64Registers, T.Text) -> Int -> T.Text
+mkX64RegAsm (reg, nm) off =
+  let core :: T.Text
+      core = "[" <> globalRegArrayName <> "+" <> T.pack (show off) <> "], " <> nm
+  in if isFPReg reg
+  then "\tmovapd " <> core
+  else "\tmovq " <> core
+
+mkPPC64RegAsm :: (P64.PPC64Registers, T.Text) -> Int -> T.Text
+mkPPC64RegAsm (reg, nm) off =
+  if isFPReg reg
+  then ""
+  else ""
+
+mkX64MemAsm :: Int -> [T.Text]
+mkX64MemAsm n =
+  let ntxt = T.pack (show n)
+  in [ "\tmovq R10, [RSP+" <> ntxt <> "]"
+     , "\tmovq [" <> globalParArrayName <> "+" <> ntxt <> "], R10"
+     ]
+
+mkPPC64MemAsm :: Int -> [T.Text]
+mkPPC64MemAsm = undefined
+
 --------------------------------------------------------------------------------
 -- Compilation stuff below here
 
-binName = "test.exe"
-
-mkCCFlags code exe = ["-O0", "-o", exe, code]
+binName :: FP.FilePath
+binName = "abide-test.exe"
 
 compileWith
   :: TestableArch arch abi
-  => proxy (arch, abi) -> FP.FilePath -> FP.FilePath -> [C.Definition] -> IO T.Text
-compileWith p cc bin code = Tmp.withSystemTempDirectory "compile-test" $ \dir -> do
-  Tmp.withSystemTempFile "test.c" $ \fp h -> do
-    PP.hPutDocLn h $ PP.ppr code
-    IO.hFlush h
-    (ec, _, cerr) <- Proc.readProcessWithExitCode cc (mkCCFlags fp (dir </> bin)) ""
-    case ec of
-      SE.ExitSuccess -> do
-        let (exe, args) = exeWrapper p (dir </> bin)
-        (_, cout, _) <- Proc.readProcessWithExitCode exe args ""
-        return $ T.pack cout
-      SE.ExitFailure n -> do
-        error $ show cerr
+  => proxy (arch, abi) -> FP.FilePath -> [C.Definition] -> T.Text -> IO T.Text
+compileWith p bin code asm = do
+  Tmp.withSystemTempDirectory "compile-test" $ \dir -> do
+    Tmp.withSystemTempFile "main.c" $ \fpc hc -> do
+      Tmp.withSystemTempFile "foo.S" $ \fps hs -> do
+        PP.hPutDocLn hc $ PP.ppr code
+        IO.hFlush hc
+        T.hPutStrLn hs asm
+        let defaultFlags = ["-static", "-O0", "-no-pie", fpc, fps, "-o", dir </> bin]
+        (ec, _, cerr) <- Proc.readProcessWithExitCode (ccFP p) (ccFlags p ++ defaultFlags) ""
+        case ec of
+          SE.ExitSuccess -> do
+            let (exe, args) = exeWrapper p (dir </> bin)
+            (cec, cout, cerr) <- Proc.readProcessWithExitCode (dir </> bin) args ""
+            case cec of
+              SE.ExitSuccess -> return $ T.pack cout
+              SE.ExitFailure _ -> do
+                writeFile "main.c.runbad" (PP.pretty 120 (PP.ppr code))
+                writeFile "foo.S.runbad" (T.unpack asm)
+                error $ show cout
+          SE.ExitFailure n -> do
+            writeFile "main.c.ccbad" (PP.pretty 120 (PP.ppr code))
+            writeFile "foo.S.ccbad" (T.unpack asm)
+            error $ show cerr
+
+--------------------------------------------------------------------------------
+
+instance C.ToIdent T.Text where
+  toIdent t = C.toIdent (T.unpack t)
