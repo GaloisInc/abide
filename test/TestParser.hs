@@ -2,7 +2,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
 
 module TestParser where
 
@@ -64,7 +63,7 @@ parseOneReg
   => proxy (arch, abi) -> Parser (Word64, reg)
 parseOneReg p = do
   regName <- regParser
-  symbol " :"
+  MPC.space
   (, regName) <$> MPL.hexadecimal
 
 --------------------------------------------------------------------------------

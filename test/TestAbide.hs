@@ -38,23 +38,10 @@ import qualified Text.Megaparsec.Error as MP
 import qualified Text.PrettyPrint.Mainland as PP
 import qualified Text.PrettyPrint.Mainland.Class as PP
 
-karlp = parseRegs (Proxy @(PPC64, SystemV)) txt
-  where txt = [ "R3 : 11"
-              , "R4 : 22"
-              , "R5 : 33"
-              , "R6 : 44"
-              , "R7 : 55"
-              , "R8 : 66"
-              , "R9 : 77"
-              , "R10 : 88"
-              ]
-
-x64 = Proxy @(X86_64, SystemV)
-ppc64 = Proxy @(PPC64, SystemV)
-
 main :: IO ()
 main = hspec $ do
-  -- let
+  let x64 = Proxy @(X86_64, SystemV)
+      ppc64 = Proxy @(PPC64, SystemV)
 
   it "Test parameters that all fit in registers" $ do
     (aRes, cRes) <- doTest x64 regTest

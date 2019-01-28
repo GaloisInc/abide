@@ -2,7 +2,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TypeApplications #-}
 
 module TestGenerator where
 
@@ -10,6 +9,7 @@ import           Data.Char ( isAlpha )
 import           Data.List ( intersperse )
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import           Data.Word
 import           Language.C.Pretty ()
 import qualified Language.C.Quote as C
 import qualified Language.C.Quote.C as C
@@ -149,7 +149,8 @@ mkMainFn px ps nm =
   let parDefs = [C.citems|$items:(mkParamDefs ps)|]
       fnCall  = [C.citem|$item:(mkFnCall ps)|]
       ret     = [C.citem|return 0;|]
-      prints  = zipWith (printRegVar px) (regStrings px) [0..]
+      prints  = zipWith (printRegVar px) (regStrings px) [0..] ++
+                concatMap (printMem px) ps
       main    = [C.cfun|int main() { $items:(parDefs ++ [fnCall] ++ prints ++ [ret]) }|]
   in [C.cedecl|$func:(main)|]
 
@@ -195,9 +196,25 @@ printRegVar px reg off =
   let pfstr = T.unpack reg ++ " %lx\n"
   in [C.citem|printf($string:(pfstr), $id:(globalRegArrayName)[$(off)]);|]
 
+-- | Generate a loop that clamps the global array values to the right size
+-- type, and then prints the values.
+printMem :: TestableArch arch abi => proxy (arch, abi) -> (CType, Word64) -> [C.BlockItem]
+printMem px (ct, w) =
+  let loopPrintStr = "offset %d " ++ ctypePrintfSpec ct ++ "\n"
+  in [ [C.citem|for(int $id:(loopVarName) = 0;
+                    $id:(loopVarName) < $int:(globalParArrayLen);
+                    $id:(loopVarName)++)
+                    { $ty:(convertCType (floatToInt ct)) $id:(sizedMemVarName) =
+                        ($ty:(convertCType (floatToInt ct))) $id:(globalParArrayName)[$id:(loopVarName)];
+                      printf($string:(loopPrintStr),
+                             ($id:(loopVarName) + 1) * 8,
+                             $id:(sizedMemVarName)); }|]
+     , [C.citem|printf("parameter div\n");|]]
+
 -- | We use `movq` to get 64 bits of memory at a time, but when we compare for
 -- the values we want, we sometimes need to look at fewer bits.  These
 -- variables will hold the relevant bits.
+sizedMemVarName :: T.Text
 sizedMemVarName = "lowbits"
 
 -- | The known name of the loop counter used to iterate over the stack.
@@ -211,39 +228,31 @@ ctypePrintfSpec :: CType -> String
 ctypePrintfSpec CInt8   = "%x"
 ctypePrintfSpec CInt16  = "%x"
 ctypePrintfSpec CInt32  = "%x"
-ctypePrintfSpec CInt64  = "%llx"
+ctypePrintfSpec CInt64  = "%lx"
 ctypePrintfSpec CFloat  = "%x"
 ctypePrintfSpec CDouble = "%x"
 
+-- | Even when a parameter is a floating point type, we want to compare it as
+-- an integer so we can just see the bits more easily.
 floatToInt :: CType -> CType
 floatToInt CFloat = CInt32
 floatToInt CDouble = CInt64
 floatToInt t = t
 
--- | The printing inside the loop body is a bit complicated.  Because we are
--- using `movq`, we end up with 64 bits.  However, if we are looking for a
--- magic value that is less than 64 bits, we can only compare against the
--- relevant part.  So before printing, we need to take the least significant
--- bits.
-mkLoopPrintf :: CType -> T.Text -> T.Text -> [C.BlockItem]
-mkLoopPrintf ct nm pfnm =
-  let loopPrintStr = "offset %d " ++ ctypePrintfSpec (floatToInt ct) ++ "\n"
-  in [ [C.citem|$id:(pfnm) = ($ty:(convertCType (floatToInt ct)))$id:(nm);|]
-     , [C.citem|printf($string:(loopPrintStr), $id:(loopVarName), $id:(pfnm));|]
-     ]
-
-
 --------------------------------------------------------------------------------
 -- The code that wraps up some embedded assembly in order to check the
 -- contents of registers and the stack is all generated below here.
 
+-- | The architecture-independent structure of the assembly generation, which
+-- calls into the architecture-specific stuff.
 mkASM :: TestableArch arch abi => proxy (arch, abi) -> [T.Text]
 mkASM p =
   mkAsmHeader p ++
   zipWith (mkRegAsm p) (regVarNames p) (map (* 8) [0..]) ++
-  -- concatMap (mkMemAsm p) (map (* 8) [0..(globalParArrayLen - 2)]) ++
+  concatMap (mkMemAsm p . (* 8)) [0..(globalParArrayLen - 1)] ++
   mkAsmFooter p
 
+-- | The code that needs to go at the top of the asm file for X64
 mkX64AsmHeader :: [T.Text]
 mkX64AsmHeader =
   [ ".intel_syntax noprefix"
@@ -253,16 +262,14 @@ mkX64AsmHeader =
   , "foo:"
   ]
 
+-- | The code that needs to go at the top of the asm file for PPC64
 mkPPC64AsmHeader :: [T.Text]
 mkPPC64AsmHeader = []
 
+-- | On X64 we can just movq everything, regardless of type
 mkX64RegAsm :: (X86_64Registers, T.Text) -> Int -> T.Text
-mkX64RegAsm (reg, nm) off =
-  let core :: T.Text
-      core = "[" <> globalRegArrayName <> "+" <> T.pack (show off) <> "], " <> nm
-  in if isFPReg reg
-  then "\tmovapd " <> core
-  else "\tmovq " <> core
+mkX64RegAsm (_, nm) off =
+  "\tmovq [" <> globalRegArrayName <> "+" <> T.pack (show off) <> "], " <> nm
 
 mkPPC64RegAsm :: (P64.PPC64Registers, T.Text) -> Int -> T.Text
 mkPPC64RegAsm (reg, nm) off =
@@ -270,6 +277,8 @@ mkPPC64RegAsm (reg, nm) off =
   then ""
   else ""
 
+-- | We can't have two memory accesses in a single movq, so use R10 as an
+-- intermediate store.  R10 never holds parameters, so that should be fine.
 mkX64MemAsm :: Int -> [T.Text]
 mkX64MemAsm n =
   let ntxt = T.pack (show n)
@@ -286,16 +295,19 @@ mkPPC64MemAsm = undefined
 binName :: FP.FilePath
 binName = "abide-test.exe"
 
+-- | Do all of the file writing and compilation.  First we write the C and
+-- assembly to temporary locations, then we compile those into an executable,
+-- and if things are still going according to plan we run the executable and
+-- pass along the output for parsing.
 compileWith
   :: TestableArch arch abi
   => proxy (arch, abi) -> FP.FilePath -> [C.Definition] -> T.Text -> IO T.Text
-compileWith p bin code asm = do
-  Tmp.withSystemTempDirectory "compile-test" $ \dir -> do
-    Tmp.withSystemTempFile "main.c" $ \fpc hc -> do
+compileWith p bin code asm =
+  Tmp.withSystemTempDirectory "compile-test" $ \dir ->
+    Tmp.withSystemTempFile "main.c" $ \fpc hc ->
       Tmp.withSystemTempFile "foo.S" $ \fps hs -> do
-        PP.hPutDocLn hc $ PP.ppr code
-        IO.hFlush hc
-        T.hPutStrLn hs asm
+        PP.hPutDocLn hc (PP.ppr code) >> IO.hFlush hc
+        T.hPutStrLn hs asm >> IO.hFlush hs
         let defaultFlags = ["-static", "-O0", "-no-pie", fpc, fps, "-o", dir </> bin]
         (ec, _, cerr) <- Proc.readProcessWithExitCode (ccFP p) (ccFlags p ++ defaultFlags) ""
         case ec of
@@ -303,14 +315,17 @@ compileWith p bin code asm = do
             let (exe, args) = exeWrapper p (dir </> bin)
             (cec, cout, cerr) <- Proc.readProcessWithExitCode (dir </> bin) args ""
             case cec of
-              SE.ExitSuccess -> return $ T.pack cout
-              SE.ExitFailure _ -> do
-                writeFile "main.c.runbad" (PP.pretty 120 (PP.ppr code))
-                writeFile "foo.S.runbad" (T.unpack asm)
+              SE.ExitSuccess ->
+                -- writeFile "main.OK.c" (PP.pretty 120 (PP.ppr code))
+                -- writeFile "foo.ok.S" (T.unpack asm)
+                return $ T.pack cout
+              SE.ExitFailure _ ->
+                -- writeFile "main.c.runbad" (PP.pretty 120 (PP.ppr code))
+                -- writeFile "foo.S.runbad" (T.unpack asm)
                 error $ show cout
-          SE.ExitFailure n -> do
-            writeFile "main.c.ccbad" (PP.pretty 120 (PP.ppr code))
-            writeFile "foo.S.ccbad" (T.unpack asm)
+          SE.ExitFailure n ->
+            -- writeFile "main.c.ccbad" (PP.pretty 120 (PP.ppr code))
+            -- writeFile "foo.S.ccbad" (T.unpack asm)
             error $ show cerr
 
 --------------------------------------------------------------------------------
