@@ -160,7 +160,7 @@ mkMainFn px ps nm =
 mkParamDefs :: FnParamSpec -> [C.BlockItem]
 mkParamDefs ps =
   [C.citem|int $id:(memCpyInt);|] :
-    concat (zipWith mkParamDef paramNames ps)
+  concat (zipWith mkParamDef paramNames ps)
 
 -- | Declare and define one parameter, given a name for the variable, a type,
 -- and a value.
@@ -347,9 +347,8 @@ compileWith p bin code asm =
             (cec, cout, cerr) <- Proc.readProcessWithExitCode (dir </> bin) args ""
             case cec of
               SE.ExitSuccess -> do
-                writeFile "main.ok.c" (PP.pretty 120 (PP.ppr code))
-                writeFile "foo.ok.s" (T.unpack asm)
-                putStrLn cout
+                -- writeFile "main.ok.c" (PP.pretty 120 (PP.ppr code))
+                -- writeFile "foo.ok.s" (T.unpack asm)
                 return $ T.pack cout
               SE.ExitFailure _ -> do
                 -- writeFile "main.c.runbad" (PP.pretty 120 (PP.ppr code))

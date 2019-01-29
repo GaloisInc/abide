@@ -100,7 +100,7 @@ instance TestableArch PPC64 SystemV where
   mkRegAsm _ = mkPPC64RegAsm
   mkMemHeader _ = mkPPC64MemHeader
   mkMemAsm _ = mkPPC64MemAsm
-  ccFP _ = "powerpc64-linux-gnu-gcc"
+  ccFP _ = "powerpc64le-unknown-linux-musl-gcc"
   ccFlags _ = []
   exeWrapper _ exe = ("qemu-ppc64", [exe])
 
