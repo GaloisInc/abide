@@ -43,17 +43,21 @@ main = hspec $ do
   let x64 = Proxy @(X86_64, SystemV)
       ppc64 = Proxy @(PPC64, SystemV)
 
-  it "Test parameters that all fit in registers" $ do
-    (aRes, cRes) <- doTest x64 regTest
+  -- it "Test parameters that all fit in registers x64" $ do
+  --   (aRes, cRes) <- doTest x64 regTest
+  --   aRes `shouldBe` cRes
+
+  it "Test integer parameters passed on the stack ppc64" $ do
+    (aRes, cRes) <- doTest ppc64 intStackTest
     aRes `shouldBe` cRes
 
-  it "Test integer parameters passed on the stack" $ do
-    (aRes, cRes) <- doTest x64 intStackTest
-    aRes `shouldBe` cRes
+  -- it "Test integer parameters passed on the stack x64" $ do
+  --   (aRes, cRes) <- doTest x64 intStackTest
+  --   aRes `shouldBe` cRes
 
-  it "Test float parameters passed on the stack" $ do
-    (aRes, cRes) <- doTest x64 floatStackTest
-    aRes `shouldBe` cRes
+  -- it "Test float parameters passed on the stack x64" $ do
+  --   (aRes, cRes) <- doTest x64 floatStackTest
+  --   aRes `shouldBe` cRes
 
 --------------------------------------------------------------------------------
 -- Preliminary types and data needed for testing
@@ -81,7 +85,7 @@ instance TestableArch PPC64 SystemV where
   regStrings _ = ppcRegStrs
   regVarNames _ = ppc64RegVariables
   mkAsmHeader _ = mkPPC64AsmHeader
-  mkAsmFooter _ = []
+  mkAsmFooter _ = ["\tblr"]
   mkRegAsm _ = mkPPC64RegAsm
   mkMemAsm _ = mkPPC64MemAsm
   ccFP _ = "powerpc64-linux-gnu-gcc"

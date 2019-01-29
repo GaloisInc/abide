@@ -36,7 +36,7 @@ class (Show (OutSymbol arch abi)) => TestableArch arch abi where
   numRegs :: proxy (arch, abi) -> Int
   mkAsmHeader :: proxy (arch, abi) -> [T.Text]
   mkAsmFooter :: proxy (arch, abi) -> [T.Text]
-  mkRegAsm :: proxy (arch, abi) -> (OutSymbol arch abi, T.Text) -> Int -> T.Text
+  mkRegAsm :: proxy (arch, abi) -> (OutSymbol arch abi, T.Text) -> Int -> [T.Text]
   mkMemAsm :: proxy (arch, abi) -> Int -> [T.Text]
   regStrings :: proxy (arch, abi) -> [T.Text]
   regVarNames :: proxy (arch, abi) -> [(OutSymbol arch abi, T.Text)]

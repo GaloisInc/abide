@@ -248,7 +248,7 @@ floatToInt t = t
 mkASM :: TestableArch arch abi => proxy (arch, abi) -> [T.Text]
 mkASM p =
   mkAsmHeader p ++
-  zipWith (mkRegAsm p) (regVarNames p) (map (* 8) [0..]) ++
+  concat (zipWith (mkRegAsm p) (regVarNames p) (map (* 8) [0..])) ++
   concatMap (mkMemAsm p . (* 8)) [0..(globalParArrayLen - 1)] ++
   mkAsmFooter p
 
@@ -264,18 +264,32 @@ mkX64AsmHeader =
 
 -- | The code that needs to go at the top of the asm file for PPC64
 mkPPC64AsmHeader :: [T.Text]
-mkPPC64AsmHeader = []
+mkPPC64AsmHeader =
+  [ "\t.section \".toc\", \"aw\""
+  , ".LC0:"
+  , "\t.quad " <> globalRegArrayName
+  , "\t.section \".text\""
+  , "\t.globl " <> calledFnName
+  , "\t.type " <> calledFnName <> ", @function"
+  , calledFnName <> ":"
+  ]
 
 -- | On X64 we can just movq everything, regardless of type
-mkX64RegAsm :: (X86_64Registers, T.Text) -> Int -> T.Text
+mkX64RegAsm :: (X86_64Registers, T.Text) -> Int -> [T.Text]
 mkX64RegAsm (_, nm) off =
-  "\tmovq [" <> globalRegArrayName <> "+" <> T.pack (show off) <> "], " <> nm
+  [ "\tmovq [" <> globalRegArrayName <> "+" <> T.pack (show off) <> "], " <> nm ]
 
-mkPPC64RegAsm :: (P64.PPC64Registers, T.Text) -> Int -> T.Text
+mkPPC64RegAsm :: (P64.PPC64Registers, T.Text) -> Int -> [T.Text]
 mkPPC64RegAsm (reg, nm) off =
   if isFPReg reg
-  then ""
-  else ""
+  then [""]
+  else [ "\taddis 14, 2,.LC0@toc@ha"
+       , "\tld 14, .LC0@toc@l(14)"
+       , "\tstd " <> trailingDecimal nm <> ", " <> T.pack (show off) <> "(14)"
+       ]
+
+trailingDecimal :: T.Text -> T.Text
+trailingDecimal = T.dropWhile isAlpha
 
 -- | We can't have two memory accesses in a single movq, so use R10 as an
 -- intermediate store.  R10 never holds parameters, so that should be fine.
@@ -287,7 +301,7 @@ mkX64MemAsm n =
      ]
 
 mkPPC64MemAsm :: Int -> [T.Text]
-mkPPC64MemAsm = undefined
+mkPPC64MemAsm _ = []
 
 --------------------------------------------------------------------------------
 -- Compilation stuff below here
@@ -315,15 +329,16 @@ compileWith p bin code asm =
             let (exe, args) = exeWrapper p (dir </> bin)
             (cec, cout, cerr) <- Proc.readProcessWithExitCode (dir </> bin) args ""
             case cec of
-              SE.ExitSuccess ->
-                -- writeFile "main.OK.c" (PP.pretty 120 (PP.ppr code))
-                -- writeFile "foo.ok.S" (T.unpack asm)
+              SE.ExitSuccess -> do
+                writeFile "main.OK.c" (PP.pretty 120 (PP.ppr code))
+                writeFile "foo.ok.S" (T.unpack asm)
+                putStrLn cout
                 return $ T.pack cout
               SE.ExitFailure _ ->
                 -- writeFile "main.c.runbad" (PP.pretty 120 (PP.ppr code))
                 -- writeFile "foo.S.runbad" (T.unpack asm)
                 error $ show cout
-          SE.ExitFailure n ->
+          SE.ExitFailure n -> do
             -- writeFile "main.c.ccbad" (PP.pretty 120 (PP.ppr code))
             -- writeFile "foo.S.ccbad" (T.unpack asm)
             error $ show cerr
