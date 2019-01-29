@@ -43,21 +43,29 @@ main = hspec $ do
   let x64 = Proxy @(X86_64, SystemV)
       ppc64 = Proxy @(PPC64, SystemV)
 
-  -- it "Test parameters that all fit in registers x64" $ do
-  --   (aRes, cRes) <- doTest x64 regTest
-  --   aRes `shouldBe` cRes
+  it "Test parameters that all fit in registers ppc64" $ do
+    (aRes, cRes) <- doTest ppc64 regTest
+    aRes `shouldBe` cRes
+
+  it "Test parameters that all fit in registers x64" $ do
+    (aRes, cRes) <- doTest x64 regTest
+    aRes `shouldBe` cRes
 
   it "Test integer parameters passed on the stack ppc64" $ do
     (aRes, cRes) <- doTest ppc64 intStackTest
     aRes `shouldBe` cRes
 
-  -- it "Test integer parameters passed on the stack x64" $ do
-  --   (aRes, cRes) <- doTest x64 intStackTest
-  --   aRes `shouldBe` cRes
+  it "Test integer parameters passed on the stack x64" $ do
+    (aRes, cRes) <- doTest x64 intStackTest
+    aRes `shouldBe` cRes
 
-  -- it "Test float parameters passed on the stack x64" $ do
-  --   (aRes, cRes) <- doTest x64 floatStackTest
-  --   aRes `shouldBe` cRes
+  it "Test float parameters passed on the stack ppc64" $ do
+    (aRes, cRes) <- doTest ppc64 floatStackTest
+    aRes `shouldBe` cRes
+
+  it "Test float parameters passed on the stack x64" $ do
+    (aRes, cRes) <- doTest x64 floatStackTest
+    aRes `shouldBe` cRes
 
 --------------------------------------------------------------------------------
 -- Preliminary types and data needed for testing
@@ -72,8 +80,10 @@ instance TestableArch X86_64 SystemV where
   regVarNames _ = x64RegVariables
   mkAsmHeader _ = mkX64AsmHeader
   mkAsmFooter _ = ["\tret"]
+  mkRegHeader _ = []
   mkRegAsm _ = mkX64RegAsm
-  mkMemAsm p = mkX64MemAsm
+  mkMemHeader _ = []
+  mkMemAsm _ = mkX64MemAsm
   ccFP _ = "gcc"
   ccFlags _ = []
   exeWrapper _ exe = (exe, [])
@@ -86,7 +96,9 @@ instance TestableArch PPC64 SystemV where
   regVarNames _ = ppc64RegVariables
   mkAsmHeader _ = mkPPC64AsmHeader
   mkAsmFooter _ = ["\tblr"]
+  mkRegHeader _ = mkPPC64RegHeader
   mkRegAsm _ = mkPPC64RegAsm
+  mkMemHeader _ = mkPPC64MemHeader
   mkMemAsm _ = mkPPC64MemAsm
   ccFP _ = "powerpc64-linux-gnu-gcc"
   ccFlags _ = []

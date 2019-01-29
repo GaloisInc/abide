@@ -242,15 +242,15 @@ class ArchParamBaseOffset arch where
   stackAlignment :: Proxy arch -> Natural
 
 instance ArchParamBaseOffset PPC32 where
-  paramBaseOffset _ = 0 -- 8
+  paramBaseOffset _ = 8
   stackAlignment _ = 4
 
 instance ArchParamBaseOffset PPC64 where
-  paramBaseOffset _ = 40 -- 48?
+  paramBaseOffset _ = 48
   stackAlignment _ = 8
 
 instance ArchParamBaseOffset X86_64 where
-  paramBaseOffset _ = 8 -- CAREFUL
+  paramBaseOffset _ = 8
   stackAlignment _ = 8
 
 --------------------------------------------------------------------------------

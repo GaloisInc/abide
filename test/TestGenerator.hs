@@ -147,11 +147,12 @@ mkMainFn
   => proxy (arch, abi) -> FnParamSpec -> T.Text -> C.Definition
 mkMainFn px ps nm =
   let parDefs = [C.citems|$items:(mkParamDefs ps)|]
+      clear   = [C.citem|$id:(memCpyInt) = 0;|]
       fnCall  = [C.citem|$item:(mkFnCall ps)|]
       ret     = [C.citem|return 0;|]
       prints  = zipWith (printRegVar px) (regStrings px) [0..] ++
                 concatMap (printMem px) ps
-      main    = [C.cfun|int main() { $items:(parDefs ++ [fnCall] ++ prints ++ [ret]) }|]
+      main    = [C.cfun|int main() { $items:(parDefs ++ [clear, fnCall] ++ prints ++ [ret]) }|]
   in [C.cedecl|$func:(main)|]
 
 -- | First we declare an int which we will use to memcpy bits into floating
@@ -159,7 +160,7 @@ mkMainFn px ps nm =
 mkParamDefs :: FnParamSpec -> [C.BlockItem]
 mkParamDefs ps =
   [C.citem|int $id:(memCpyInt);|] :
-  concat (zipWith mkParamDef paramNames ps)
+    concat (zipWith mkParamDef paramNames ps)
 
 -- | Declare and define one parameter, given a name for the variable, a type,
 -- and a value.
@@ -248,7 +249,9 @@ floatToInt t = t
 mkASM :: TestableArch arch abi => proxy (arch, abi) -> [T.Text]
 mkASM p =
   mkAsmHeader p ++
+  mkRegHeader p ++
   concat (zipWith (mkRegAsm p) (regVarNames p) (map (* 8) [0..])) ++
+  mkMemHeader p ++
   concatMap (mkMemAsm p . (* 8)) [0..(globalParArrayLen - 1)] ++
   mkAsmFooter p
 
@@ -268,6 +271,8 @@ mkPPC64AsmHeader =
   [ "\t.section \".toc\", \"aw\""
   , ".LC0:"
   , "\t.quad " <> globalRegArrayName
+  , ".LC1:"
+  , "\t.quad " <> globalParArrayName
   , "\t.section \".text\""
   , "\t.globl " <> calledFnName
   , "\t.type " <> calledFnName <> ", @function"
@@ -279,14 +284,17 @@ mkX64RegAsm :: (X86_64Registers, T.Text) -> Int -> [T.Text]
 mkX64RegAsm (_, nm) off =
   [ "\tmovq [" <> globalRegArrayName <> "+" <> T.pack (show off) <> "], " <> nm ]
 
+mkPPC64RegHeader :: [T.Text]
+mkPPC64RegHeader =
+  [ "\taddis 14, 2,.LC0@toc@ha"
+  , "\tld 14, .LC0@toc@l(14)"
+  ]
+
 mkPPC64RegAsm :: (P64.PPC64Registers, T.Text) -> Int -> [T.Text]
 mkPPC64RegAsm (reg, nm) off =
   if isFPReg reg
-  then [""]
-  else [ "\taddis 14, 2,.LC0@toc@ha"
-       , "\tld 14, .LC0@toc@l(14)"
-       , "\tstd " <> trailingDecimal nm <> ", " <> T.pack (show off) <> "(14)"
-       ]
+  then ["\tstfs " <> trailingDecimal nm <> ", " <> T.pack (show off) <> "(14)"]
+  else ["\tstd "  <> trailingDecimal nm <> ", " <> T.pack (show off) <> "(14)"]
 
 trailingDecimal :: T.Text -> T.Text
 trailingDecimal = T.dropWhile isAlpha
@@ -300,8 +308,17 @@ mkX64MemAsm n =
      , "\tmovq [" <> globalParArrayName <> "+" <> ntxt <> "], R10"
      ]
 
+mkPPC64MemHeader :: [T.Text]
+mkPPC64MemHeader =
+  [ "\taddis 14, 2,.LC1@toc@ha"
+  , "\tld 14, .LC1@toc@l(14)"
+  ]
+
 mkPPC64MemAsm :: Int -> [T.Text]
-mkPPC64MemAsm _ = []
+mkPPC64MemAsm n =
+  [ "\tld 3, " <> T.pack (show n) <> "(1)"
+  , "\tstd 3, " <> T.pack (show n) <> "(14)"
+  ]
 
 --------------------------------------------------------------------------------
 -- Compilation stuff below here
@@ -330,17 +347,17 @@ compileWith p bin code asm =
             (cec, cout, cerr) <- Proc.readProcessWithExitCode (dir </> bin) args ""
             case cec of
               SE.ExitSuccess -> do
-                writeFile "main.OK.c" (PP.pretty 120 (PP.ppr code))
-                writeFile "foo.ok.S" (T.unpack asm)
+                writeFile "main.ok.c" (PP.pretty 120 (PP.ppr code))
+                writeFile "foo.ok.s" (T.unpack asm)
                 putStrLn cout
                 return $ T.pack cout
-              SE.ExitFailure _ ->
+              SE.ExitFailure _ -> do
                 -- writeFile "main.c.runbad" (PP.pretty 120 (PP.ppr code))
-                -- writeFile "foo.S.runbad" (T.unpack asm)
+                -- writeFile "foo.s.runbad" (T.unpack asm)
                 error $ show cout
           SE.ExitFailure n -> do
             -- writeFile "main.c.ccbad" (PP.pretty 120 (PP.ppr code))
-            -- writeFile "foo.S.ccbad" (T.unpack asm)
+            -- writeFile "foo.s.ccbad" (T.unpack asm)
             error $ show cerr
 
 --------------------------------------------------------------------------------

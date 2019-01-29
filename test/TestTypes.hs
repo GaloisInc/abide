@@ -4,7 +4,6 @@
 module TestTypes where
 
 import qualified Data.Map.Strict as M
-import qualified Text.Megaparsec as MP
 import qualified Data.Text as T
 import           Data.Word
 import qualified Language.C.Quote as C
@@ -36,7 +35,9 @@ class (Show (OutSymbol arch abi)) => TestableArch arch abi where
   numRegs :: proxy (arch, abi) -> Int
   mkAsmHeader :: proxy (arch, abi) -> [T.Text]
   mkAsmFooter :: proxy (arch, abi) -> [T.Text]
+  mkRegHeader :: proxy (arch, abi) -> [T.Text]
   mkRegAsm :: proxy (arch, abi) -> (OutSymbol arch abi, T.Text) -> Int -> [T.Text]
+  mkMemHeader :: proxy (arch, abi) -> [T.Text]
   mkMemAsm :: proxy (arch, abi) -> Int -> [T.Text]
   regStrings :: proxy (arch, abi) -> [T.Text]
   regVarNames :: proxy (arch, abi) -> [(OutSymbol arch abi, T.Text)]

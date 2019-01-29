@@ -46,7 +46,8 @@ parseRegs
      , TestableArch arch abi
      )
   => proxy (arch, abi) -> [T.Text] -> RegVals reg
-parseRegs px t = foldr (parseAndInsert (parseOneReg px)) M.empty (filter (isRegLine px) t)
+parseRegs px t =
+  foldr (parseAndInsert (parseOneReg px) . trimTrailingZeros) M.empty (filter (isRegLine px) t)
 
 -- | Check whether a line is a register value mapping that we care about, as
 -- they all start with the name of the register.
@@ -54,6 +55,9 @@ isRegLine
   :: (TestableArch arch abi)
   => proxy (arch, abi) -> T.Text -> Bool
 isRegLine px txt = any (`T.isPrefixOf` T.strip txt) (regStrings px)
+
+trimTrailingZeros :: T.Text -> T.Text
+trimTrailingZeros = T.reverse . T.dropWhile (== '0') . T.reverse
 
 -- | The parser for a register value mapping.
 parseOneReg
