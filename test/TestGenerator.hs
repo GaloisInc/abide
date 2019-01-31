@@ -339,7 +339,7 @@ compileWith p bin code asm =
       Tmp.withSystemTempFile "foo.S" $ \fps hs -> do
         PP.hPutDocLn hc (PP.ppr code) >> IO.hFlush hc
         T.hPutStrLn hs asm >> IO.hFlush hs
-        let defaultFlags = ["-static", "-O0", "-no-pie", fpc, fps, "-o", dir </> bin]
+        let defaultFlags = ["-static", "-O", "-no-pie", fpc, fps, "-o", dir </> bin]
         (ec, _, cerr) <- Proc.readProcessWithExitCode (ccFP p) (ccFlags p ++ defaultFlags) ""
         case ec of
           SE.ExitSuccess -> do
