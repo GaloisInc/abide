@@ -353,7 +353,7 @@ compileWith p bin code asm =
               SE.ExitFailure _ -> do
                 -- writeFile "main.c.runbad" (PP.pretty 120 (PP.ppr code))
                 -- writeFile "foo.s.runbad" (T.unpack asm)
-                error $ show cout
+                error $ show cerr
           SE.ExitFailure n -> do
             -- writeFile "main.c.ccbad" (PP.pretty 120 (PP.ppr code))
             -- writeFile "foo.s.ccbad" (T.unpack asm)
