@@ -32,16 +32,16 @@ library
                      , Abide.Types.Arch.PPC64
                      , Abide.Types.Arch.X86_64
   build-depends:       base >=4.10 && <4.13
-                     , bytestring ==0.10.*
+                     , bytestring
                      , comonad ==5.*
-                     , containers ==0.5.*
+                     , containers
                      , file-embed >=0.0.10 && <0.1
-                     , filepath ==1.*
+                     , filepath
                      , lens ==4.*
                      , megaparsec ==7.*
                      , parameterized-utils ==1.*
                      , parser-combinators ==1.*
-                     , text ==1.*
+                     , text
                      , tuple ==0.3.*
                      , universe ==1.*
   hs-source-dirs:      src
@@ -62,16 +62,16 @@ executable abide
                      , Abide.Types.Arch.PPC64
                      , Abide.Types.Arch.X86_64
   build-depends:       base >=4.10 && <4.13
-                     , bytestring ==0.10.*
+                     , bytestring
                      , comonad ==5.*
-                     , containers ==0.5.*
+                     , containers
                      , file-embed >=0.0.10 && <0.1
-                     , filepath ==1.*
+                     , filepath
                      , lens ==4.*
                      , megaparsec ==7.*
                      , parameterized-utils ==1.*                     
                      , parser-combinators ==1.*
-                     , text ==1.*
+                     , text
                      , tuple ==0.3.*
                      , universe ==1.*
   hs-source-dirs:      src
@@ -88,14 +88,14 @@ test-suite test-abide
                      , TestTypes
   build-depends:       base <5
                      , abide
-                     , containers ==0.5.*
-                     , filepath ==1.*
+                     , containers
+                     , filepath
                      , hspec ==2.*
                      , language-c-quote >=0.12 && <1.0
                      , mainland-pretty >= 0.6 && <1.0
                      , megaparsec ==7.*
                      , parser-combinators ==1.*
                      , temporary ==1.*
-                     , text ==1.*
-                     , process ==1.*
+                     , text
+                     , process
   default-language:    Haskell2010
