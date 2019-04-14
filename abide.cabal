@@ -39,7 +39,7 @@ library
                      , filepath
                      , lens ==4.*
                      , megaparsec ==7.*
-                     , parameterized-utils ==1.*
+                     , parameterized-utils >=1.0.5 && < 2.1
                      , parser-combinators ==1.*
                      , text
                      , tuple ==0.3.*
@@ -69,7 +69,7 @@ executable abide
                      , filepath
                      , lens ==4.*
                      , megaparsec ==7.*
-                     , parameterized-utils ==1.*                     
+                     , parameterized-utils >=1.0.5 && < 2.1
                      , parser-combinators ==1.*
                      , text
                      , tuple ==0.3.*
