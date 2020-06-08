@@ -17,3 +17,7 @@ execute them in Haskell.
 We could just write a DSL for defining and executing FSTs, but this separation
 allows us to verify the FST separately and and thereby to simplify bug-fixing
 and potential extensions.
+
+# Acknowledgements
+
+This material is based upon work supported by the Defense Advanced Research Projects Agency (DARPA) under Contract No. HR001118C0029.
