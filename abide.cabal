@@ -38,7 +38,7 @@ library
                      , file-embed >=0.0.10 && <0.1
                      , filepath
                      , lens ==4.*
-                     , megaparsec ==7.*
+                     , megaparsec >= 7 && < 10
                      , parameterized-utils >=1.0.5 && < 2.2
                      , parser-combinators ==1.*
                      , text
@@ -68,7 +68,7 @@ executable abide
                      , file-embed >=0.0.10 && <0.1
                      , filepath
                      , lens ==4.*
-                     , megaparsec ==7.*
+                     , megaparsec >= 7 && < 10
                      , parameterized-utils >=1.0.5 && < 2.2
                      , parser-combinators ==1.*
                      , text
@@ -93,7 +93,7 @@ test-suite test-abide
                      , hspec ==2.*
                      , language-c-quote >=0.12 && <1.0
                      , mainland-pretty >= 0.6 && <1.0
-                     , megaparsec ==7.*
+                     , megaparsec >= 7 && < 10
                      , parser-combinators ==1.*
                      , temporary ==1.*
                      , text
